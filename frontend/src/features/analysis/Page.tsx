@@ -1,4 +1,3 @@
-import { ScanLine } from 'lucide-react'
 import { ModulePage } from '../../shared/ModulePage'
 import type { AnalysisRun } from '../../shared/contracts'
 
@@ -13,14 +12,16 @@ export default function AnalysisPage() {
   return (
     <ModulePage<AnalysisRun[]>
       title="Анализ соответствия"
-      description="Сопоставление документов с требованиями и проверка доказательств экспертом."
-      icon={ScanLine}
+      description="Сопоставление документов с требованиями приказа."
       path="/analyses"
       emptyTitle="Проверок пока нет"
-      emptyDescription="Запуск проверок появится после подключения извлечения текста, базы требований и локального поиска."
+      emptyDescription="Для запуска проверки нужны документы, требования и локальный поиск."
     >
       {(runs) => runs.length ? <ul className="resource-list">{runs.map((run) =>
-        <li key={run.id}>{labels[run.state]} · Результатов по требованиям: {run.results.length}</li>)}</ul> : null}
+        <li key={run.id} className="resource-row">
+          <span>{labels[run.state]}</span>
+          <span className="muted">Результатов по требованиям: {run.results.length}</span>
+        </li>)}</ul> : null}
     </ModulePage>
   )
 }

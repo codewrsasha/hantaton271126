@@ -1,12 +1,9 @@
-import { CircleAlert, LoaderCircle } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useApi } from './api'
 
 interface ModulePageProps<T> {
   title: string
   description: string
-  icon: LucideIcon
   path: string
   emptyTitle: string
   emptyDescription: string
@@ -14,31 +11,33 @@ interface ModulePageProps<T> {
 }
 
 export function ModulePage<T>({
-  title, description, icon: Icon, path, emptyTitle, emptyDescription, children,
+  title, description, path, emptyTitle, emptyDescription, children,
 }: ModulePageProps<T>) {
   const result = useApi<T>(path)
 
   return (
     <>
-      <div className="page-heading">
+      <header className="page-heading">
         <h1>{title}</h1>
-        <p>{description}</p>
-      </div>
-      <section className="panel empty-module" aria-live="polite">
+        <p className="muted">{description}</p>
+      </header>
+      <div className="surface" aria-live="polite">
         {result.state === 'loading' && (
-          <div className="empty-state"><LoaderCircle className="animate-spin" /><p>Загрузка данных…</p></div>
+          <p className="module-state muted">Загрузка данных…</p>
         )}
         {result.state === 'error' && (
-          <div className="empty-state"><CircleAlert /><p>Не удалось получить данные. Проверьте подключение к локальному серверу.</p></div>
+          <div className="module-state">
+            <h2>Не удалось получить данные</h2>
+            <p className="muted">Проверьте, запущен ли локальный сервер.</p>
+          </div>
         )}
         {result.state === 'ready' && (children(result.data) ?? (
-          <div className="empty-state">
-            <div className="icon-tile"><Icon size={23} /></div>
+          <div className="module-state">
             <h2>{emptyTitle}</h2>
-            <p>{emptyDescription}</p>
+            <p className="muted">{emptyDescription}</p>
           </div>
         ))}
-      </section>
+      </div>
     </>
   )
 }

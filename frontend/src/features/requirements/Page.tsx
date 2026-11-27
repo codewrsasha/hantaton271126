@@ -1,4 +1,3 @@
-import { LibraryBig } from 'lucide-react'
 import { ModulePage } from '../../shared/ModulePage'
 import type { Requirement } from '../../shared/contracts'
 
@@ -6,11 +5,10 @@ export default function RequirementsPage() {
   return (
     <ModulePage<Requirement[]>
       title="База требований"
-      description="Требования приказа ФСТЭК России № 117 с указанием редакции и пункта."
-      icon={LibraryBig}
+      description="Приказ ФСТЭК России № 117."
       path="/requirements"
-      emptyTitle="Требования ещё не импортированы"
-      emptyDescription="База будет заполнена после проверки нормативного источника и его редакции."
+      emptyTitle="База требований пока пуста"
+      emptyDescription="Требования появятся после загрузки проверенной редакции приказа."
     >
       {(requirements) => requirements.length ? <ul className="resource-list">{requirements.map((item) =>
         <li key={item.requirement_id}>

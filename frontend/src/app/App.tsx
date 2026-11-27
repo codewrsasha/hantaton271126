@@ -1,4 +1,3 @@
-import { FileChartColumn, Files, LayoutDashboard, LibraryBig, LockKeyhole, MessagesSquare, ScanLine, ShieldCheck } from 'lucide-react'
 import { useSyncExternalStore } from 'react'
 import AnalysisPage from '../features/analysis/Page'
 import ChatPage from '../features/chat/Page'
@@ -10,13 +9,19 @@ import { useApi } from '../shared/api'
 import type { Health } from '../shared/contracts'
 
 const pages = [
-  { id: 'dashboard', label: 'Обзор', icon: LayoutDashboard, component: DashboardPage },
-  { id: 'documents', label: 'Документы', icon: Files, component: DocumentsPage },
-  { id: 'requirements', label: 'База требований', icon: LibraryBig, component: RequirementsPage },
-  { id: 'analysis', label: 'Анализ соответствия', icon: ScanLine, component: AnalysisPage },
-  { id: 'reports', label: 'Отчёты', icon: FileChartColumn, component: ReportsPage },
-  { id: 'chat', label: 'ИИ-чат', icon: MessagesSquare, component: ChatPage },
+  { id: 'dashboard', label: 'Обзор', component: DashboardPage },
+  { id: 'documents', label: 'Документы', component: DocumentsPage },
+  { id: 'requirements', label: 'База требований', component: RequirementsPage },
+  { id: 'analysis', label: 'Анализ соответствия', component: AnalysisPage },
+  { id: 'reports', label: 'Отчёты', component: ReportsPage },
+  { id: 'chat', label: 'ИИ-чат', component: ChatPage },
 ]
+
+const connectionLabels = {
+  loading: 'Проверка связи…',
+  ready: 'Сервер подключён',
+  error: 'Сервер недоступен',
+}
 
 function subscribe(onChange: () => void) {
   window.addEventListener('hashchange', onChange)
@@ -36,28 +41,21 @@ export default function App() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <a className="brand" href="#dashboard">
-          <span className="brand-icon"><ShieldCheck size={23} strokeWidth={2.1} /></span>
-          <span><strong>FSTEC Inspector</strong><small>Предварительный аудит</small></span>
-        </a>
+        <div className="brand"><a href="#dashboard">Инспектор ФСТЭК</a></div>
         <nav className="navigation" aria-label="Разделы приложения">
-          {pages.map(({ id, label, icon: Icon }) => (
+          {pages.map(({ id, label }) => (
             <a key={id} href={`#${id}`} aria-current={id === active.id ? 'page' : undefined}>
-              <Icon size={19} strokeWidth={1.8} /><span>{label}</span>
+              {label}
             </a>
           ))}
         </nav>
-        <div className="sidebar-footer">
-          <LockKeyhole size={17} />
-          <div><strong>Локальный контур</strong><small>On-premise</small></div>
-        </div>
       </aside>
 
       <div className="workspace">
         <header className="topbar">
-          <span className="breadcrumb">Рабочая область <span aria-hidden="true">/</span> <b>{active.label}</b></span>
+          <span>Локальный режим</span>
           <span className="connection" data-state={health.state} role="status">
-            {health.state === 'ready' ? 'Сервер подключён' : health.state === 'loading' ? 'Проверка сервера' : 'Сервер недоступен'}
+            {connectionLabels[health.state]}
           </span>
         </header>
         <main className="content" key={active.id}><Page health={health} /></main>

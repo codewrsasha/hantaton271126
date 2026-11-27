@@ -50,7 +50,7 @@ npm.cmd --prefix frontend ci --offline --cache "$PWD\.npm-cache" --no-audit --no
 npm.cmd --prefix frontend run build
 ```
 
-Точные версии Python-пакетов зафиксированы в `backend/requirements.txt` (PyPI). FastAPI, Pydantic и python-dotenv распространяются под MIT, Uvicorn — BSD-3-Clause. Зависимости интерфейса зафиксированы в `frontend/package-lock.json` (npm). React, Vite и Tailwind CSS используют MIT, Lucide React — ISC с уведомлением MIT для иконок Feather, TypeScript — Apache-2.0. Лицензии транзитивных npm-пакетов входят в установленные пакеты, лицензии Python-пакетов — в метаданные и файлы внутри wheelhouse.
+Точные версии Python-пакетов зафиксированы в `backend/requirements.txt` (PyPI). FastAPI, Pydantic и python-dotenv распространяются под MIT, Uvicorn — BSD-3-Clause. Зависимости интерфейса зафиксированы в `frontend/package-lock.json` (npm). React, Vite и Tailwind CSS используют MIT, TypeScript — Apache-2.0. Лицензии транзитивных npm-пакетов входят в установленные пакеты, лицензии Python-пакетов — в метаданные и файлы внутри wheelhouse.
 
 SQLite поставляется с Python. Приложение загружает интерфейс, шрифты системы и API локально. Сборка не включает модель или векторный индекс. Версии, происхождение, лицензии и процедуру офлайн-размещения LangChain, ChromaDB, Ollama и Qwen3 4B команда фиксирует при их подключении.
 

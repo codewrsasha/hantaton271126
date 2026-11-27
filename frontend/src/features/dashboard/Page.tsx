@@ -1,13 +1,18 @@
-import { ArrowRight, ClipboardList, FileChartColumn, Files, LibraryBig, ScanLine, Server, ShieldCheck } from 'lucide-react'
 import { useApi } from '../../shared/api'
 import type { DashboardSummary, Health } from '../../shared/contracts'
 
 const metrics = [
-  { key: 'documents', label: 'Документы', page: 'documents', icon: Files },
-  { key: 'requirements', label: 'Требования', page: 'requirements', icon: LibraryBig },
-  { key: 'analyses', label: 'Проверки', page: 'analysis', icon: ScanLine },
-  { key: 'reports', label: 'Отчёты', page: 'reports', icon: FileChartColumn },
+  { key: 'documents', label: 'Документы', page: 'documents' },
+  { key: 'requirements', label: 'Требования', page: 'requirements' },
+  { key: 'analyses', label: 'Проверки', page: 'analysis' },
+  { key: 'reports', label: 'Отчёты', page: 'reports' },
 ] as const
+
+const availability = {
+  loading: 'Проверка связи…',
+  ready: 'Доступны',
+  error: 'Недоступны',
+}
 
 export default function DashboardPage({ health }: {
   health: ReturnType<typeof useApi<Health>>
@@ -16,55 +21,57 @@ export default function DashboardPage({ health }: {
 
   return (
     <>
-      <div className="page-heading">
-        <h1>Обзор</h1>
-        <p>Рабочая область предварительной проверки соответствия</p>
-      </div>
-
-      <section className="hero" aria-labelledby="hero-title">
-        <div className="hero-art" aria-hidden="true">
-          <div /><div /><div /><ShieldCheck size={94} strokeWidth={1.15} />
+      <header className="page-heading overview-heading">
+        <div>
+          <p className="page-context">Приказ ФСТЭК России № 117</p>
+          <h1>Обзор проверок</h1>
         </div>
-        <div className="hero-content">
-          <div className="hero-label"><span /> Приказ ФСТЭК России № 117</div>
-          <h2 id="hero-title">Проверка<br className="hero-break" /> соответствия</h2>
-          <p>Документы, нормативные требования и результаты экспертизы в локальном контуре.</p>
-          <a className="primary-button" href="#documents">К документам <ArrowRight size={17} /></a>
-        </div>
-      </section>
+        <a className="primary-action" href="#documents">Открыть документы</a>
+      </header>
 
-      <section aria-labelledby="metrics-title" className="section-gap">
-        <h2 className="section-title" id="metrics-title">Сводка</h2>
-        {summary.state === 'error' &&
-          <p className="inline-error" role="status">Не удалось получить сводку с локального сервера.</p>}
-        <div className="metrics-grid">
-          {metrics.map(({ key, label, page, icon: Icon }) => (
-            <a className="panel metric" key={key} href={`#${page}`}>
-              <span className="icon-tile"><Icon size={19} /></span>
-              <ArrowRight className="metric-arrow" size={16} />
-              <strong>{summary.state === 'ready' ? summary.data[key] : '—'}</strong>
-              <span>{label}</span>
-            </a>
+      <section aria-labelledby="metrics-title">
+        <h2 className="section-heading" id="metrics-title">Сводка</h2>
+        <ul className="surface metrics" aria-busy={summary.state === 'loading'}>
+          {metrics.map(({ key, label, page }) => (
+            <li key={key}>
+              <a className="metric" href={`#${page}`}>
+                <span className="metric-label">{label}</span>
+                {summary.state === 'ready'
+                  ? <strong className="metric-value">{summary.data[key]}</strong>
+                  : <span className="metric-placeholder">
+                      {summary.state === 'loading' ? 'Загрузка…' : 'Нет данных'}
+                    </span>}
+              </a>
+            </li>
           ))}
-        </div>
+        </ul>
+        {summary.state === 'error' && (
+          <p className="summary-error" role="status">Не удалось получить сводку с локального сервера.</p>
+        )}
       </section>
 
-      <div className="dashboard-bottom section-gap">
-        <section className="panel dashboard-panel">
-          <div className="panel-heading"><ClipboardList size={20} /><h2>Проверки</h2><a href="#analysis">К анализу <ArrowRight size={15} /></a></div>
-          <div className="dashboard-empty">
-            <span className="icon-tile"><ScanLine size={22} /></span>
-            <strong>{summary.state === 'ready' && summary.data.analyses === 0 ? 'Проверок пока нет' : 'Результаты анализа'}</strong>
-            <p>{summary.state === 'ready' && summary.data.analyses === 0
-              ? 'После запуска проверки здесь появится информация о ней.'
-              : 'Состояние проверок доступно в разделе анализа.'}</p>
+      <div className="overview-details">
+        <section aria-labelledby="checks-title">
+          <div className="section-heading section-heading-with-action">
+            <h2 id="checks-title">Проверки</h2>
+            <a className="text-action" href="#analysis">Открыть анализ</a>
+          </div>
+          <div className="surface check-state" aria-live="polite">
+            {summary.state === 'loading' && <p className="muted">Загрузка проверок…</p>}
+            {summary.state === 'error' && <p className="muted">Сведения о проверках недоступны.</p>}
+            {summary.state === 'ready' && (
+              summary.data.analyses === 0
+                ? <p>Проверок пока нет</p>
+                : <p>Результаты доступны в разделе анализа.</p>
+            )}
           </div>
         </section>
-        <section className="panel dashboard-panel">
-          <div className="panel-heading"><Server size={20} /><h2>Состояние системы</h2></div>
+
+        <section aria-labelledby="system-title">
+          <h2 className="section-heading" id="system-title">Состояние системы</h2>
           <dl className="system-list">
             <div><dt>Режим работы</dt><dd>Локальный</dd></div>
-            <div><dt>Backend и SQLite</dt><dd className="health-text" data-state={health.state}>{health.state === 'ready' ? 'Доступны' : health.state === 'loading' ? 'Проверка…' : 'Недоступны'}</dd></div>
+            <div><dt>Сервер и база данных</dt><dd className="availability" data-state={health.state}>{availability[health.state]}</dd></div>
             <div><dt>Языковая модель</dt><dd>Не подключена</dd></div>
           </dl>
         </section>
