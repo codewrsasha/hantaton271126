@@ -1,0 +1,37 @@
+# Local configuration and sensitive data
+.env
+.env.*
+!.env.example
+data/
+uploads/
+models/
+wheelhouse/
+*.sqlite
+*.sqlite3
+*.db
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
+*.db-wal
+*.db-shm
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Node
+node_modules/
+dist/
+.npm-cache/
+*.tsbuildinfo
+
+# Local tooling
+.uv-cache/
+*.log
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
