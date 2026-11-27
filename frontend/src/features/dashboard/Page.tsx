@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react'
 import { useApi } from '../../shared/api'
-import type { DashboardSummary, Health } from '../../shared/contracts'
+import type { ChatStatus, DashboardSummary, Health } from '../../shared/contracts'
+import { NumberTicker } from '../../shared/NumberTicker'
 
 const metrics = [
   { key: 'documents', label: 'Документы', page: 'documents' },
@@ -14,33 +16,43 @@ const availability = {
   error: 'Недоступны',
 }
 
+let titleRevealed = false
+
 export default function DashboardPage({ health }: {
   health: ReturnType<typeof useApi<Health>>
 }) {
   const summary = useApi<DashboardSummary>('/dashboard/summary')
+  const chat = useApi<ChatStatus>('/chat/status')
+  const [animateTitle] = useState(() => !titleRevealed)
+  useEffect(() => { titleRevealed = true }, [])
 
   return (
     <>
-      <header className="page-heading overview-heading">
-        <div>
-          <p className="page-context">Приказ ФСТЭК России № 117</p>
-          <h1>Обзор проверок</h1>
+      <header className="hero">
+        <div className="hero-copy">
+          <p className="eyebrow">Предварительный анализ</p>
+          <h1 className={animateTitle ? 'focus-title' : undefined} aria-label="Проверка соответствия">
+            <span>Проверка</span><span>соответствия</span>
+          </h1>
+          <a className="action action-primary" href="#documents">Подготовить проверку</a>
         </div>
-        <a className="primary-action" href="#documents">Открыть документы</a>
+        <div className="order-grid">
+          <p>Приказ ФСТЭК России</p>
+          <p className="order-number"><span>№</span> 117</p>
+          <a className="text-action" href="#requirements">К базе требований</a>
+        </div>
       </header>
 
-      <section aria-labelledby="metrics-title">
-        <h2 className="section-heading" id="metrics-title">Сводка</h2>
-        <ul className="surface metrics" aria-busy={summary.state === 'loading'}>
+      <section className="dashboard-section scene-reveal" aria-labelledby="metrics-title">
+        <h2 className="section-title" id="metrics-title">Сводка</h2>
+        <ul className="metrics" aria-busy={summary.state === 'loading'}>
           {metrics.map(({ key, label, page }) => (
             <li key={key}>
               <a className="metric" href={`#${page}`}>
                 <span className="metric-label">{label}</span>
-                {summary.state === 'ready'
-                  ? <strong className="metric-value">{summary.data[key]}</strong>
-                  : <span className="metric-placeholder">
-                      {summary.state === 'loading' ? 'Загрузка…' : 'Нет данных'}
-                    </span>}
+                {summary.state === 'ready' && <strong className="metric-value"><NumberTicker value={summary.data[key]} /></strong>}
+                {summary.state === 'loading' && <span className="skeleton metric-skeleton" aria-hidden="true" />}
+                {summary.state === 'error' && <span className="muted">Нет данных</span>}
               </a>
             </li>
           ))}
@@ -50,29 +62,29 @@ export default function DashboardPage({ health }: {
         )}
       </section>
 
-      <div className="overview-details">
+      <div className="overview-details scene-reveal">
         <section aria-labelledby="checks-title">
-          <div className="section-heading section-heading-with-action">
-            <h2 id="checks-title">Проверки</h2>
+          <div className="section-heading-with-action">
+            <h2 className="section-title" id="checks-title">Проверки</h2>
             <a className="text-action" href="#analysis">Открыть анализ</a>
           </div>
-          <div className="surface check-state" aria-live="polite">
+          <div className="module-state" aria-live="polite">
             {summary.state === 'loading' && <p className="muted">Загрузка проверок…</p>}
             {summary.state === 'error' && <p className="muted">Сведения о проверках недоступны.</p>}
             {summary.state === 'ready' && (
-              summary.data.analyses === 0
-                ? <p>Проверок пока нет</p>
-                : <p>Результаты доступны в разделе анализа.</p>
+              <p>{summary.data.analyses === 0 ? 'Проверок пока нет' : 'Результаты доступны в разделе анализа.'}</p>
             )}
           </div>
         </section>
 
         <section aria-labelledby="system-title">
-          <h2 className="section-heading" id="system-title">Состояние системы</h2>
+          <h2 className="section-title" id="system-title">Состояние системы</h2>
           <dl className="system-list">
             <div><dt>Режим работы</dt><dd>Локальный</dd></div>
-            <div><dt>Сервер и база данных</dt><dd className="availability" data-state={health.state}>{availability[health.state]}</dd></div>
-            <div><dt>Языковая модель</dt><dd>Не подключена</dd></div>
+            <div><dt>Сервер и база данных</dt><dd>{availability[health.state]}</dd></div>
+            <div><dt>ИИ-чат</dt><dd>{chat.state === 'ready'
+              ? chat.data.state === 'ready' ? 'Доступен' : 'Не подключён'
+              : chat.state === 'error' ? 'Нет данных' : 'Проверка связи…'}</dd></div>
           </dl>
         </section>
       </div>

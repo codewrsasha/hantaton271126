@@ -7,11 +7,13 @@ interface ModulePageProps<T> {
   path: string
   emptyTitle: string
   emptyDescription: string
+  sectionTitle?: string
+  beforeData?: ReactNode
   children: (data: T) => ReactNode
 }
 
 export function ModulePage<T>({
-  title, description, path, emptyTitle, emptyDescription, children,
+  title, description, path, emptyTitle, emptyDescription, sectionTitle, beforeData, children,
 }: ModulePageProps<T>) {
   const result = useApi<T>(path)
 
@@ -21,23 +23,29 @@ export function ModulePage<T>({
         <h1>{title}</h1>
         <p className="muted">{description}</p>
       </header>
-      <div className="surface" aria-live="polite">
+      {beforeData}
+      <section className="module-data scene-reveal" aria-label={sectionTitle ?? title} aria-busy={result.state === 'loading'}>
+        {sectionTitle && <h2 className="section-title">{sectionTitle}</h2>}
         {result.state === 'loading' && (
-          <p className="module-state muted">Загрузка данных…</p>
+          <div className="module-state skeleton-state" role="status">
+            <span className="sr-only">Загрузка данных…</span>
+            <span className="skeleton" aria-hidden="true" />
+            <span className="skeleton" aria-hidden="true" />
+          </div>
         )}
         {result.state === 'error' && (
-          <div className="module-state">
-            <h2>Не удалось получить данные</h2>
+          <div className="module-state" role="status">
+            <strong>Не удалось получить данные</strong>
             <p className="muted">Проверьте, запущен ли локальный сервер.</p>
           </div>
         )}
         {result.state === 'ready' && (children(result.data) ?? (
           <div className="module-state">
-            <h2>{emptyTitle}</h2>
+            <strong>{emptyTitle}</strong>
             <p className="muted">{emptyDescription}</p>
           </div>
         ))}
-      </div>
+      </section>
     </>
   )
 }

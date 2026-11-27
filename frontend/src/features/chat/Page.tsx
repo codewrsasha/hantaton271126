@@ -7,6 +7,7 @@ export default function ChatPage() {
       title="ИИ-чат"
       description="Вопросы по результатам проверки."
       path="/chat/status"
+      sectionTitle="Состояние чата"
       emptyTitle="Чат пока недоступен"
       emptyDescription="Чат станет доступен после подключения локальной языковой модели."
     >
