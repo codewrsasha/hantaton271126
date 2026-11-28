@@ -5,6 +5,7 @@ interface ModulePageProps<T> {
   title: string
   description: string
   path: string
+  refresh?: number
   emptyTitle: string
   emptyDescription: string
   sectionTitle?: string
@@ -13,9 +14,9 @@ interface ModulePageProps<T> {
 }
 
 export function ModulePage<T>({
-  title, description, path, emptyTitle, emptyDescription, sectionTitle, beforeData, children,
+  title, description, path, refresh, emptyTitle, emptyDescription, sectionTitle, beforeData, children,
 }: ModulePageProps<T>) {
-  const result = useApi<T>(path)
+  const result = useApi<T>(path, refresh)
 
   return (
     <>

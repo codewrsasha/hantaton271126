@@ -1,0 +1,27 @@
+.upload-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin-block-end: var(--space-3);
+}
+
+.action-document-secondary {
+  border: var(--rule);
+  background: var(--surface);
+  color: var(--accent);
+}
+
+.action-document-secondary:hover { background-color: var(--accent-surface); }
+
+.file-picker button:disabled {
+  opacity: .55;
+  cursor: default;
+  transform: none;
+}
+
+.upload-note {
+  flex-basis: 100%;
+  font-size: var(--text-label);
+}

@@ -16,6 +16,14 @@ export interface DocumentRecord {
   format: 'pdf' | 'docx'
   size_bytes: number
   state: 'received' | 'extracted' | 'needs_review' | 'failed'
+  issue: {
+    code: 'no_text' | 'partial_extraction' | 'extraction_failed' | 'unknown_location'
+    message: string
+  } | null
+}
+
+export interface DocumentUploadLimits {
+  max_size_bytes: number
 }
 
 export interface Requirement {

@@ -1,3 +1,4 @@
+import asyncio
 import sqlite3
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -8,7 +9,7 @@ from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from .config import FRONTEND_DIST, database_path
+from .config import FRONTEND_DIST, database_path, document_max_bytes
 from .db import check_database
 from .modules import analysis, chat, dashboard, documents, reports, requirements
 
@@ -21,9 +22,14 @@ class Health(BaseModel):
 def create_app(db_path: Path | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        path = db_path if db_path is not None else database_path()
+        path = (db_path if db_path is not None else database_path()).resolve()
+        if path.is_relative_to(FRONTEND_DIST.parent.resolve()) or path.is_relative_to(FRONTEND_DIST.resolve()):
+            raise ValueError("The SQLite database must be outside the frontend directory")
+        app.state.document_max_bytes = document_max_bytes()
+        app.state.document_upload_slots = asyncio.Semaphore(2)
         path.parent.mkdir(parents=True, exist_ok=True)
         check_database(path)
+        documents.initialize(path)
         app.state.database_path = path
         yield
 

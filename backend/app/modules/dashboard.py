@@ -1,4 +1,6 @@
-from fastapi import APIRouter
+import sqlite3
+
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from . import analysis, documents, reports, requirements
@@ -14,9 +16,13 @@ class DashboardSummary(BaseModel):
 
 
 @router.get("/summary", response_model=DashboardSummary)
-def summary() -> DashboardSummary:
+def summary(request: Request) -> DashboardSummary:
+    try:
+        document_count = documents.count_documents(request.app.state.database_path)
+    except sqlite3.Error as error:
+        raise HTTPException(503, "Не удалось прочитать сводку из локального хранилища.") from error
     return DashboardSummary(
-        documents=len(documents.list_documents()),
+        documents=document_count,
         requirements=len(requirements.list_requirements()),
         analyses=len(analysis.list_analyses()),
         reports=len(reports.list_reports()),

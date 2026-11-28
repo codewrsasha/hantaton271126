@@ -6,6 +6,8 @@ anyio==4.16.0
     # via starlette
 click==8.5.1
     # via uvicorn
+defusedxml==0.7.1
+    # via -r backend/requirements.in
 fastapi==0.123.10
     # via -r backend/requirements.in
 h11==0.16.0
@@ -18,7 +20,11 @@ pydantic==2.12.5
     #   fastapi
 pydantic-core==2.41.5
     # via pydantic
+pypdf==7.2.0
+    # via -r backend/requirements.in
 python-dotenv==1.2.1
+    # via -r backend/requirements.in
+python-multipart==0.0.34
     # via -r backend/requirements.in
 starlette==0.50.0
     # via fastapi
