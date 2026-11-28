@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from ...contracts import AnalysisResult
+from ...dialogs import DialogId, LEGACY_DIALOG
 from ...local_api import ErrorResponse, LocalActionRoute, local_action
 from ..documents import storage as documents
 from .. import requirements as catalog
@@ -22,20 +23,20 @@ analysis_slot = Lock()
 
 
 @router.get("")
-def list_analyses(request: Request) -> list[AnalysisRun]:
-    return storage.list_runs(request.app.state.database_path)
+def list_analyses(request: Request, dialog_id: DialogId = LEGACY_DIALOG) -> list[AnalysisRun]:
+    return storage.list_runs(request.app.state.database_path, dialog_id)
 
 
 @router.get("/{analysis_id}")
-def analysis_details(request: Request, analysis_id: UUID) -> AnalysisRun:
-    run = get_run(request.app.state.database_path, analysis_id)
+def analysis_details(request: Request, analysis_id: UUID, dialog_id: DialogId = LEGACY_DIALOG) -> AnalysisRun:
+    run = get_run(request.app.state.database_path, analysis_id, dialog_id)
     if run is None:
         raise HTTPException(404, "Проверка не найдена.")
     return run
 
 
 @router.post("", status_code=201, dependencies=[Depends(local_action)])
-def start_analysis(request: Request, data: StartAnalysis) -> AnalysisRun:
+def start_analysis(request: Request, data: StartAnalysis, dialog_id: DialogId = LEGACY_DIALOG) -> AnalysisRun:
     path = request.app.state.database_path
     if not analysis_slot.acquire(blocking=False):
         raise HTTPException(429, "Уже выполняется проверка. Повторите попытку после её завершения.")
@@ -50,10 +51,10 @@ def start_analysis(request: Request, data: StartAnalysis) -> AnalysisRun:
         selected = []
         sources = []
         for document_id in data.document_ids:
-            document = documents.get_document(path, document_id)
+            document = documents.get_document(path, document_id, dialog_id)
             if document is None:
                 raise HTTPException(404, "Один из выбранных документов не найден.")
-            fragments = documents.read_fragments(path, document_id)
+            fragments = documents.read_fragments(path, document_id, dialog_id)
             selected.append(AnalysisDocument(**document.model_dump(), fragment_count=len(fragments)))
             sources.extend(matching.MatchSource(document, fragment) for fragment in fragments)
 
@@ -63,7 +64,7 @@ def start_analysis(request: Request, data: StartAnalysis) -> AnalysisRun:
             revision_date=active.revision_date, obtained_on=active.obtained_on,
             created_at=datetime.now(timezone.utc), documents=selected,
         )
-        storage.insert(path, run)
+        storage.insert(path, run, dialog_id)
         try:
             run.results = matching.evaluate(requirements, selected, sources)
             run.state = "completed"
@@ -77,8 +78,10 @@ def start_analysis(request: Request, data: StartAnalysis) -> AnalysisRun:
 
 
 @router.put("/{analysis_id}/results/{requirement_id}/review", dependencies=[Depends(local_action)])
-def review_result(request: Request, analysis_id: UUID, requirement_id: str, review: ReviewUpdate) -> AnalysisResult:
+def review_result(
+    request: Request, analysis_id: UUID, requirement_id: str, review: ReviewUpdate, dialog_id: DialogId = LEGACY_DIALOG,
+) -> AnalysisResult:
     try:
-        return storage.save_review(request.app.state.database_path, analysis_id, requirement_id, review)
+        return storage.save_review(request.app.state.database_path, analysis_id, requirement_id, review, dialog_id)
     except storage.ReviewError as error:
         raise HTTPException(error.status, str(error)) from None

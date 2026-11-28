@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, HTTPException, Request
 from starlette.concurrency import run_in_threadpool
 
+from ...dialogs import DialogDeleted, DialogId, LEGACY_DIALOG
 from . import docx, pdf, storage
 from .models import Document, ErrorResponse, RejectedUpload, UploadLimits
 from .upload import receive_file
@@ -18,8 +19,8 @@ def initialize(path: Path) -> None:
     storage.initialize(path)
 
 
-def count_documents(path: Path) -> int:
-    return storage.count_documents(path)
+def count_documents(path: Path, dialog_id: UUID = LEGACY_DIALOG) -> int:
+    return storage.count_documents(path, dialog_id)
 
 
 def display_filename(filename: str, format_: str) -> str:
@@ -28,7 +29,7 @@ def display_filename(filename: str, format_: str) -> str:
     return safe[:255] if safe and safe not in {".", ".."} else f"document.{format_}"
 
 
-def ingest(path: Path, filename: str, content: bytes) -> Document:
+def ingest(path: Path, filename: str, content: bytes, dialog_id: UUID = LEGACY_DIALOG) -> Document:
     if content.startswith(b"%PDF-"):
         result = pdf.extract(content)
     elif content.startswith(b"PK\x03\x04"):
@@ -40,14 +41,14 @@ def ingest(path: Path, filename: str, content: bytes) -> Document:
         id=uuid4(), filename=display_filename(filename, result.format), format=result.format,
         size_bytes=len(content), state=result.state, issue=result.issue,
     )
-    storage.save(path, document, content, result.fragments)
+    storage.save(path, document, content, result.fragments, dialog_id)
     return document
 
 
 @router.get("", responses={503: {"model": ErrorResponse}})
-def list_documents(request: Request) -> list[Document]:
+def list_documents(request: Request, dialog_id: DialogId = LEGACY_DIALOG) -> list[Document]:
     try:
-        return storage.list_documents(request.app.state.database_path)
+        return storage.list_documents(request.app.state.database_path, dialog_id)
     except sqlite3.Error as error:
         raise HTTPException(503, "Не удалось прочитать список документов. Проверьте доступность локального хранилища.") from error
 
@@ -58,24 +59,25 @@ def upload_limits(request: Request) -> UploadLimits:
 
 
 @router.get("/{document_id}/fragments")
-def document_fragments(document_id: UUID, request: Request):
+def document_fragments(document_id: UUID, request: Request, dialog_id: DialogId = LEGACY_DIALOG):
     try:
-        if not any(doc.id == document_id for doc in storage.list_documents(request.app.state.database_path)):
+        path = request.app.state.database_path
+        if storage.get_document(path, document_id, dialog_id) is None:
             raise HTTPException(404, "Документ не найден.")
-        return storage.read_fragments(request.app.state.database_path, document_id)
+        return storage.read_fragments(path, document_id, dialog_id)
     except sqlite3.Error as error:
         raise HTTPException(503, "Не удалось прочитать документ.") from error
 
 
 @router.post(
     "", status_code=201, response_model=Document,
-    responses={code: {"model": ErrorResponse} for code in (400, 408, 413, 415, 422, 429, 503)},
+    responses={code: {"model": ErrorResponse} for code in (400, 408, 410, 413, 415, 422, 429, 503)},
     openapi_extra={"requestBody": {"required": True, "content": {"multipart/form-data": {
         "schema": {"type": "object", "required": ["file"], "additionalProperties": False,
                    "properties": {"file": {"type": "string", "format": "binary"}}},
     }}}},
 )
-async def upload_document(request: Request) -> Document:
+async def upload_document(request: Request, dialog_id: DialogId = LEGACY_DIALOG) -> Document:
     slots = request.app.state.document_upload_slots
     if slots.locked():
         raise HTTPException(429, "Сервер обрабатывает другие загрузки. Повторите попытку позже.")
@@ -84,10 +86,12 @@ async def upload_document(request: Request) -> Document:
         try:
             async with asyncio.timeout(30):
                 filename, content = await receive_file(request, request.app.state.document_max_bytes)
-            return await run_in_threadpool(ingest, request.app.state.database_path, filename, content)
+            return await run_in_threadpool(ingest, request.app.state.database_path, filename, content, dialog_id)
         except TimeoutError as error:
             raise HTTPException(408, "Истекло время приёма файла. Повторите загрузку.") from error
         except RejectedUpload as error:
             raise HTTPException(error.status_code, str(error)) from error
+        except DialogDeleted as error:
+            raise HTTPException(410, str(error)) from error
         except (sqlite3.Error, OSError) as error:
             raise HTTPException(503, "Не удалось сохранить документ. Проверьте доступность локального хранилища.") from error

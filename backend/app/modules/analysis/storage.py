@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from ...contracts import AnalysisResult, ExpertReview
 from ...db import transaction
+from ...dialogs import LEGACY_DIALOG, ensure_open
 from .models import AnalysisRun
 
 INTERRUPTED = "Работа приложения прервалась. Запустите проверку заново."
@@ -29,16 +30,22 @@ def initialize(path: Path) -> None:
                 error TEXT
             )
         """)
+        db.execute("BEGIN IMMEDIATE")
+        if not any(column[1] == "dialog_id" for column in db.execute("PRAGMA table_info(analysis_runs)")):
+            db.execute(f"ALTER TABLE analysis_runs ADD COLUMN dialog_id TEXT NOT NULL DEFAULT '{LEGACY_DIALOG}'")
+        db.execute("CREATE INDEX IF NOT EXISTS analysis_dialog_idx ON analysis_runs (dialog_id)")
         db.execute(
             "UPDATE analysis_runs SET state = 'failed', error = ? WHERE state IN ('running', 'queued')",
             (INTERRUPTED,),
         )
 
 
-def insert(path: Path, run: AnalysisRun) -> None:
+def insert(path: Path, run: AnalysisRun, dialog_id: UUID = LEGACY_DIALOG) -> None:
     with transaction(path) as db:
-        db.execute("INSERT INTO analysis_runs (id, state, snapshot) VALUES (?, ?, ?)",
-                   (str(run.id), run.state, run.model_dump_json()))
+        db.execute("BEGIN IMMEDIATE")
+        ensure_open(db, dialog_id)
+        db.execute("INSERT INTO analysis_runs (id, state, snapshot, dialog_id) VALUES (?, ?, ?, ?)",
+                   (str(run.id), run.state, run.model_dump_json(), str(dialog_id)))
 
 
 def finish(path: Path, run: AnalysisRun) -> None:
@@ -73,27 +80,29 @@ def with_review(result: AnalysisResult, review: ExpertReview) -> AnalysisResult:
 SELECT = "SELECT state, snapshot, reviews, error FROM analysis_runs"
 
 
-def fetch(path: Path, analysis_id: UUID) -> AnalysisRun | None:
+def fetch(path: Path, analysis_id: UUID, dialog_id: UUID = LEGACY_DIALOG) -> AnalysisRun | None:
     with transaction(path) as db:
-        row = db.execute(SELECT + " WHERE id = ?", (str(analysis_id),)).fetchone()
+        row = db.execute(SELECT + " WHERE id = ? AND dialog_id = ?", (str(analysis_id), str(dialog_id))).fetchone()
     return read_run(row) if row else None
 
 
-def list_runs(path: Path) -> list[AnalysisRun]:
+def list_runs(path: Path, dialog_id: UUID = LEGACY_DIALOG) -> list[AnalysisRun]:
     with transaction(path) as db:
-        rows = db.execute(SELECT + " ORDER BY rowid DESC").fetchall()
+        rows = db.execute(SELECT + " WHERE dialog_id = ? ORDER BY rowid DESC", (str(dialog_id),)).fetchall()
     return [read_run(row) for row in rows]
 
 
-def count(path: Path) -> int:
+def count(path: Path, dialog_id: UUID = LEGACY_DIALOG) -> int:
     with transaction(path) as db:
-        return db.execute("SELECT COUNT(*) FROM analysis_runs").fetchone()[0]
+        return db.execute("SELECT COUNT(*) FROM analysis_runs WHERE dialog_id = ?", (str(dialog_id),)).fetchone()[0]
 
 
-def save_review(path: Path, analysis_id: UUID, requirement_id: str, review: ExpertReview) -> AnalysisResult:
+def save_review(
+    path: Path, analysis_id: UUID, requirement_id: str, review: ExpertReview, dialog_id: UUID = LEGACY_DIALOG,
+) -> AnalysisResult:
     with transaction(path) as db:
         db.execute("BEGIN IMMEDIATE")
-        row = db.execute(SELECT + " WHERE id = ?", (str(analysis_id),)).fetchone()
+        row = db.execute(SELECT + " WHERE id = ? AND dialog_id = ?", (str(analysis_id), str(dialog_id))).fetchone()
         if not row:
             raise ReviewError(404, "Проверка не найдена.")
         state, snapshot, review_json, _ = row

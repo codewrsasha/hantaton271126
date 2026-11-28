@@ -6,6 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.routing import APIRoute
 from pydantic import BaseModel
 
+from .dialogs import DialogDeleted
 
 class ErrorResponse(BaseModel):
     detail: str
@@ -22,6 +23,8 @@ class LocalActionRoute(APIRoute):
                 raise HTTPException(
                     422, "Проверьте идентификаторы, список документов и поля запроса."
                 ) from None
+            except DialogDeleted as error:
+                raise HTTPException(410, str(error)) from None
             except sqlite3.Error:
                 raise HTTPException(503, "Локальное хранилище недоступно. Повторите попытку позже.") from None
 

@@ -9,6 +9,7 @@ from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from . import dialogs
 from .config import FRONTEND_DIST, database_path, document_max_bytes
 from .db import check_database
 from .modules import analysis, chat, dashboard, documents, reports, requirements
@@ -29,6 +30,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         app.state.document_upload_slots = asyncio.Semaphore(2)
         path.parent.mkdir(parents=True, exist_ok=True)
         check_database(path)
+        dialogs.initialize(path)
         documents.initialize(path)
         requirements.catalog()
         analysis.initialize(path)

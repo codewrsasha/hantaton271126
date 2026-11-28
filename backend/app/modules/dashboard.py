@@ -3,6 +3,7 @@ import sqlite3
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from ..dialogs import DialogId, LEGACY_DIALOG
 from . import analysis, documents, reports, requirements
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -16,14 +17,14 @@ class DashboardSummary(BaseModel):
 
 
 @router.get("/summary", response_model=DashboardSummary)
-def summary(request: Request) -> DashboardSummary:
+def summary(request: Request, dialog_id: DialogId = LEGACY_DIALOG) -> DashboardSummary:
+    path = request.app.state.database_path
     try:
-        document_count = documents.count_documents(request.app.state.database_path)
+        return DashboardSummary(
+            documents=documents.count_documents(path, dialog_id),
+            requirements=requirements.catalog().revision.requirement_count,
+            analyses=analysis.count_analyses(path, dialog_id),
+            reports=reports.count_reports(path, dialog_id),
+        )
     except sqlite3.Error as error:
         raise HTTPException(503, "Не удалось прочитать сводку из локального хранилища.") from error
-    return DashboardSummary(
-        documents=document_count,
-        requirements=requirements.catalog().revision.requirement_count,
-        analyses=analysis.count_analyses(request.app.state.database_path),
-        reports=reports.count_reports(request.app.state.database_path),
-    )

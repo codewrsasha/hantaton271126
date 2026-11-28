@@ -24,11 +24,15 @@
 .thread-link, .overview-link { display: block; padding: 9px; border-radius: 7px; font-size: 13px; }
 .thread-link { width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
 .thread-link[aria-current], .thread-link:hover, .overview-link:hover { background: #e4e7f2; }
+.history-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px; align-items: center; }
+.thread-delete { width: 32px; height: 32px; border-radius: 7px; color: var(--sub); font-size: 20px; }
+.thread-delete:hover { background: var(--soft); color: var(--ink); }
 .overview-link { display: flex; justify-content: space-between; border-top: 1px solid var(--border); border-radius: 0; font-weight: 650; }
 .conversation { display: grid; grid-template-rows: auto minmax(0,1fr) auto; min-width: 0; min-height: 0; }
 .conversation-bar { display: flex; align-items: center; gap: 10px; padding: 23px clamp(16px,2.4vw,40px); font-weight: 700; }
 .mode-chip { background: var(--soft); color: var(--sub); font-weight: 550; padding: 4px 9px; border-radius: 20px; font-size: 11px; }
 .message-stream { overflow-y: auto; padding: 12px clamp(18px,3vw,60px); }
+.chat-answer { white-space: pre-wrap; overflow-wrap: anywhere; }
 .is-empty { display: flex; }
 .welcome { width: min(100%, 580px); margin: auto; padding: 14px 0 32px; }
 .order-monogram { display: grid; place-items: center; width: 48px; height: 48px; background: #edf0ff; border: 1px solid #d8def6; color: var(--blue); border-radius: 14px; font: 32px Georgia, serif; }
@@ -41,6 +45,7 @@
 .composer { max-width: 740px; margin: auto; padding: 13px 15px 10px; border: 1px solid #ccd1df; border-radius: 18px; box-shadow: 0 3px 14px #242d4910; }
 .composer:focus-within { border-color: var(--blue); }
 .composer textarea { width: 100%; resize: none; font-size: 14px; outline: none; }
+.question-document { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; font-size: 12px; overflow-wrap: anywhere; }
 .compose-actions { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--sub); }
 .compose-actions button { width: 34px; height: 34px; color: white; background: var(--blue); border-radius: 10px; font-size: 22px; line-height: 1; }
 .compose-note { margin-top: 8px; font-size: 10px; color: var(--sub); text-align: center; }

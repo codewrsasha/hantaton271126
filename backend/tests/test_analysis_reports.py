@@ -8,6 +8,8 @@ from unittest.mock import patch
 from uuid import uuid4
 
 from app.main import create_app
+from app.db import transaction
+from app.ollama import ModelError
 from app.modules.requirements import Catalog, FixedRevision
 from app.contracts import Requirement, RegulatorySource
 
@@ -30,8 +32,10 @@ class AnalysisReportsTests(unittest.IsolatedAsyncioTestCase):
             await stack.enter_async_context(self.app.router.lifespan_context(self.app))
             self.addAsyncCleanup(stack.pop_all().aclose)
 
-    async def request(self, method, path, body=b"", *, content=b"application/json", marker=True):
+    async def request(self, method, path, body=b"", *, content=b"application/json", marker=True, dialog=None):
         headers = [(b"host", b"localhost:8000"), (b"content-type", content)]
+        if dialog is not None:
+            headers.append((b"x-dialog-id", str(dialog).encode()))
         if marker:
             headers.extend([(b"x-inspector-action", b"1"), (b"x-catalog-action", b"1")])
         messages = []
@@ -55,9 +59,9 @@ class AnalysisReportsTests(unittest.IsolatedAsyncioTestCase):
             b"".join(message["body"] for message in messages[1:]),
         )
 
-    async def api(self, method, path, data=None, *, marker=True):
+    async def api(self, method, path, data=None, *, marker=True, dialog=None):
         code, _, body = await self.request(
-            method, path, json.dumps(data).encode() if data is not None else b"", marker=marker
+            method, path, json.dumps(data).encode() if data is not None else b"", marker=marker, dialog=dialog,
         )
         return code, json.loads(body)
 
@@ -82,10 +86,10 @@ class AnalysisReportsTests(unittest.IsolatedAsyncioTestCase):
         self.catalog_patch.start()
         self.addCleanup(self.catalog_patch.stop)
 
-    async def upload(self, content, filename):
+    async def upload(self, content, filename, *, dialog=None):
         status, _, response = await self.request(
             "POST", "/api/v1/documents", form(content, filename),
-            content=b"multipart/form-data; boundary=" + BOUNDARY,
+            content=b"multipart/form-data; boundary=" + BOUNDARY, dialog=dialog,
         )
         self.assertEqual(status, 201)
         return json.loads(response)["id"]
@@ -95,6 +99,152 @@ class AnalysisReportsTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(status, 201, run)
         self.assertEqual(run["state"], "completed")
         return run
+
+    async def test_documents_analyses_and_reports_are_isolated_by_dialog(self):
+        await self.activate("synthetic-a")
+        first, second = uuid4(), uuid4()
+        documents = "/api/v1/documents"
+        doc = await self.upload(pdf(PDF_TEXT), "first.pdf", dialog=first)
+        fragments = f"{documents}/{doc}/fragments"
+        self.assertEqual(await self.api("GET", documents, dialog=second), (200, []))
+        self.assertEqual(await self.api("GET", documents), (200, []))
+        self.assertEqual((await self.api("GET", documents, dialog="invalid"))[0], 422)
+        self.assertEqual((await self.api("GET", fragments, dialog=second))[0], 404)
+        self.assertEqual((await self.api("GET", fragments, dialog=first))[1][0]["text"], PDF_TEXT)
+        other = await self.upload(docx(paragraph("Second dialog")), "second.docx", dialog=second)
+        self.assertEqual([item["id"] for item in (await self.api("GET", documents, dialog=first))[1]], [doc])
+        self.assertEqual([item["id"] for item in (await self.api("GET", documents, dialog=second))[1]], [other])
+
+        data = {"document_ids": [doc]}
+        self.assertEqual((await self.api("POST", ANALYSES, data, dialog=second))[0], 404)
+        status, run = await self.api("POST", ANALYSES, data, dialog=first)
+        self.assertEqual((status, run["state"]), (201, "completed"))
+        url = f"{ANALYSES}/{run['id']}"
+        self.assertEqual(await self.api("GET", ANALYSES, dialog=second), (200, []))
+        self.assertEqual((await self.api("GET", url, dialog=second))[0], 404)
+        self.assertEqual((await self.api(
+            "PUT", f"{url}/results/SYN-01/review", {"comment": "Синтетический отзыв"}, dialog=second,
+        ))[0], 404)
+
+        data = {"analysis_id": run["id"]}
+        self.assertEqual((await self.api("POST", REPORTS, data, dialog=second))[0], 404)
+        status, report = await self.api("POST", REPORTS, data, dialog=first)
+        self.assertEqual(status, 201)
+        download = f"{REPORTS}/{report['id']}/download"
+        self.assertEqual(await self.api("GET", REPORTS, dialog=second), (200, []))
+        self.assertEqual((await self.request("GET", download, dialog=second))[0], 404)
+        self.assertEqual((await self.request("GET", download, dialog=first))[0], 200)
+        _, summary = await self.api("GET", "/api/v1/dashboard/summary", dialog=second)
+        self.assertEqual((summary["documents"], summary["analyses"], summary["reports"]), (1, 0, 0))
+
+    async def test_chat_grounds_response_in_catalog_and_current_dialog_only(self):
+        await self.activate("synthetic-a")
+        first, second = uuid4(), uuid4()
+        doc = await self.upload(pdf(PDF_TEXT), "own.pdf", dialog=first)
+        await self.upload(pdf("Synthetic telemetry encryption hidden"), "other.pdf", dialog=second)
+        path = "/api/v1/chat/messages"
+        data = {"question": "Synthetic telemetry encryption", "history": [{"question": "first question", "answer": "first answer"}]}
+        with patch("app.ollama.answer", return_value="См. [Н1] и [Д1].") as answer:
+            code, reply = await self.api("POST", path, data, dialog=first)
+            self.assertEqual(code, 200)
+            self.assertEqual(reply["answer"], "См. [Н1] и [Д1].")
+            self.assertEqual(reply["citations"][0]["id"], "SYN-01")
+            self.assertEqual(reply["document_evidence"][0]["document_id"], doc)
+            self.assertEqual(reply["document_evidence"][0]["location"], {"kind": "pdf_page", "page": 1})
+            messages = answer.call_args.args[0]
+            self.assertEqual([item["role"] for item in messages], ["system", "user"])
+            source = json.loads(messages[1]["content"])
+            self.assertEqual(source["предыдущая переписка"], data["history"])
+            self.assertEqual([item["filename"] for item in source["файлы"].values()], ["own.pdf"])
+            self.assertNotIn("hidden", messages[1]["content"])
+            self.assertEqual((await self.api("POST", path, data, dialog=first, marker=False))[0], 403)
+            self.assertEqual((await self.api("POST", path, data))[0], 422)
+            self.assertEqual(answer.call_count, 1)
+
+    async def test_chat_recovers_after_local_model_failure_and_timeout(self):
+        path = "/api/v1/chat/messages"
+        data = {"question": "Синтетический вопрос"}
+        dialog = uuid4()
+        with patch("app.ollama.answer", side_effect=ModelError("Модель недоступна.")):
+            self.assertEqual(await self.api("POST", path, data, dialog=dialog), (503, {"detail": "Модель недоступна."}))
+        with patch("app.ollama.answer", side_effect=TimeoutError):
+            self.assertEqual((await self.api("POST", path, data, dialog=dialog))[0], 504)
+        with patch("app.ollama.answer", return_value="Ответ тестовой модели."):
+            self.assertEqual((await self.api("POST", path, data, dialog=dialog))[0], 200)
+
+    async def test_chat_reads_selected_document_and_reports_limits(self):
+        first, second = uuid4(), uuid4()
+        source = await self.upload(pdf("Synthetic procedure", "Last page"), "own.pdf", dialog=first)
+        other = await self.upload(docx(paragraph(SECTION_TITLE, heading=True) + paragraph(DOCX_TEXT)),
+                                  "own.docx", dialog=first)
+        foreign = await self.upload(pdf("Other dialog"), "foreign.pdf", dialog=second)
+        scan = await self.upload(pdf(None, scan=True), "scan.pdf", dialog=first)
+        long_pdf = await self.upload(pdf(*(f"Synthetic page {i}" for i in range(1, 9))), "long.pdf", dialog=first)
+        path = "/api/v1/chat/messages"
+        with patch("app.ollama.answer", return_value="Ответ по файлу.") as answer:
+            code, result = await self.api("POST", path, {"question": "О чём собственно own.pdf?"}, dialog=first)
+            self.assertEqual(code, 200)
+            self.assertEqual([item["document_id"] for item in result["document_evidence"]], [source, source])
+            self.assertEqual([item["location"]["page"] for item in result["document_evidence"]], [1, 2])
+            _, result = await self.api("POST", path, {"question": "Кратко перескажи", "document_id": other}, dialog=first)
+            self.assertEqual(result["document_evidence"][0]["location"], {"kind": "docx_section", "section": SECTION_TITLE})
+            self.assertIn(DOCX_TEXT, result["document_evidence"][0]["excerpt"])
+            _, result = await self.api("POST", path, {"question": "Кратко перескажи", "document_id": long_pdf}, dialog=first)
+            self.assertIn("часть извлечённого текста", result["document_note"])
+            self.assertEqual([item["location"]["page"] for item in result["document_evidence"]], [1, 3, 5, 8])
+            _, result = await self.api("POST", path, {"question": "Прочитай", "document_id": scan}, dialog=first)
+            self.assertFalse(result["generated"])
+            self.assertIn("извлечённого текста нет", result["document_note"])
+            code, _ = await self.api("POST", path, {"question": "Прочитай", "document_id": foreign}, dialog=first)
+            self.assertEqual(code, 404)
+            self.assertEqual(answer.call_count, 3)
+
+    async def test_deleting_dialog_removes_scoped_records_and_prevents_reuse(self):
+        first, second = uuid4(), uuid4()
+        source = await self.upload(pdf(PDF_TEXT), "delete.pdf", dialog=first)
+        keep = await self.upload(pdf(PDF_TEXT), "keep.pdf", dialog=second)
+        code, run = await self.api("POST", ANALYSES, {"document_ids": [source]}, dialog=first)
+        self.assertEqual(code, 201)
+        code, report = await self.api("POST", REPORTS, {"analysis_id": run["id"]}, dialog=first)
+        self.assertEqual(code, 201)
+        deletion = f"/api/v1/chat/dialogs/{first}"
+        self.assertEqual((await self.request("DELETE", deletion, marker=False))[0], 403)
+        for _ in range(2):
+            code, _, body = await self.request("DELETE", deletion)
+            self.assertEqual((code, body), (204, b""))
+        for table in ("analysis_reports", "analysis_runs"):
+            with transaction(self.db_path) as db:
+                self.assertEqual(db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0], 0)
+        with transaction(self.db_path) as db:
+            self.assertEqual(db.execute("SELECT id FROM documents").fetchall(), [(keep,)])
+            self.assertEqual(db.execute("SELECT document_id FROM document_fragments").fetchall(), [(keep,)])
+        code, _, _ = await self.request("POST", "/api/v1/documents", form(pdf("Delayed upload")),
+                                        content=b"multipart/form-data; boundary=" + BOUNDARY, dialog=first)
+        self.assertEqual(code, 410)
+        self.assertEqual((await self.api("POST", "/api/v1/chat/messages", {"question": "Прочитай"}, dialog=first))[0], 410)
+
+    async def test_existing_documents_and_analyses_are_migrated_to_legacy_dialog(self):
+        await self.activate("synthetic-a")
+        doc = await self.upload(pdf(PDF_TEXT), "existing.pdf")
+        run = await self.launch(doc)
+        status, report = await self.api("POST", REPORTS, {"analysis_id": run["id"]})
+        self.assertEqual(status, 201)
+
+        with transaction(self.db_path) as db:
+            db.executescript("""
+                DROP INDEX documents_dialog_idx;
+                DROP INDEX analysis_dialog_idx;
+                ALTER TABLE documents DROP COLUMN dialog_id;
+                ALTER TABLE analysis_runs DROP COLUMN dialog_id;
+            """)
+
+        async with self.app.router.lifespan_context(self.app):
+            documents = "/api/v1/documents"
+            self.assertEqual([item["id"] for item in (await self.api("GET", documents))[1]], [doc])
+            self.assertEqual(await self.api("GET", documents, dialog=uuid4()), (200, []))
+            self.assertEqual((await self.api("GET", f"{documents}/{doc}/fragments"))[1][0]["text"], PDF_TEXT)
+            self.assertEqual(await self.api("GET", ANALYSES), (200, [run]))
+            self.assertEqual(await self.api("GET", REPORTS), (200, [report]))
 
     async def test_active_revision_is_pinned_and_all_requirements_are_present(self):
         await self.activate("synthetic-a")

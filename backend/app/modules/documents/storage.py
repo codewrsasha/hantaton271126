@@ -7,6 +7,7 @@ from uuid import UUID
 from pydantic import TypeAdapter
 
 from ...contracts import Location
+from ...dialogs import LEGACY_DIALOG, ensure_open
 from .models import Document, DocumentIssue, Fragment
 
 location_adapter = TypeAdapter(Location)
@@ -40,20 +41,26 @@ def initialize(path: Path) -> None:
                 PRIMARY KEY (document_id, ordinal)
             );
         """)
+        db.execute("BEGIN IMMEDIATE")
+        if not any(column[1] == "dialog_id" for column in db.execute("PRAGMA table_info(documents)")):
+            db.execute(f"ALTER TABLE documents ADD COLUMN dialog_id TEXT NOT NULL DEFAULT '{LEGACY_DIALOG}'")
+        db.execute("CREATE INDEX IF NOT EXISTS documents_dialog_idx ON documents (dialog_id)")
 
 
-def save(path: Path, document: Document, original: bytes, fragments: list[Fragment]) -> None:
+def save(path: Path, document: Document, original: bytes, fragments: list[Fragment], dialog_id: UUID = LEGACY_DIALOG) -> None:
     with connection(path) as db:
+        db.execute("BEGIN IMMEDIATE")
+        ensure_open(db, dialog_id)
         db.execute(
             """
             INSERT INTO documents
-                (id, filename, storage_name, format, size_bytes, state, issue_json, original)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (id, filename, storage_name, format, size_bytes, state, issue_json, original, dialog_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(document.id), document.filename, f"{document.id.hex}.{document.format}",
                 document.format, document.size_bytes, document.state,
-                document.issue.model_dump_json() if document.issue else None, original,
+                document.issue.model_dump_json() if document.issue else None, original, str(dialog_id),
             ),
         )
         db.executemany(
@@ -73,35 +80,38 @@ def _document(row) -> Document:
     )
 
 
-def get_document(path: Path, document_id: UUID) -> Document | None:
+def get_document(path: Path, document_id: UUID, dialog_id: UUID = LEGACY_DIALOG) -> Document | None:
     """Read metadata for one document without loading the original BLOB."""
     with connection(path) as db:
         row = db.execute(
-            "SELECT id, filename, format, size_bytes, state, issue_json FROM documents WHERE id = ?",
-            (str(document_id),),
+            "SELECT id, filename, format, size_bytes, state, issue_json FROM documents WHERE id = ? AND dialog_id = ?",
+            (str(document_id), str(dialog_id)),
         ).fetchone()
     return _document(row) if row is not None else None
 
 
-def list_documents(path: Path) -> list[Document]:
+def list_documents(path: Path, dialog_id: UUID = LEGACY_DIALOG) -> list[Document]:
     with connection(path) as db:
         rows = db.execute(
-            "SELECT id, filename, format, size_bytes, state, issue_json FROM documents ORDER BY rowid DESC"
+            "SELECT id, filename, format, size_bytes, state, issue_json FROM documents WHERE dialog_id = ? ORDER BY rowid DESC",
+            (str(dialog_id),),
         ).fetchall()
 
     return [_document(row) for row in rows]
 
 
-def count_documents(path: Path) -> int:
+def count_documents(path: Path, dialog_id: UUID = LEGACY_DIALOG) -> int:
     with connection(path) as db:
-        return db.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
+        return db.execute("SELECT COUNT(*) FROM documents WHERE dialog_id = ?", (str(dialog_id),)).fetchone()[0]
 
 
-def read_fragments(path: Path, document_id: UUID) -> list[Fragment]:
+def read_fragments(path: Path, document_id: UUID, dialog_id: UUID = LEGACY_DIALOG) -> list[Fragment]:
     """Read fragments for a known document in source order, including partial results."""
     with connection(path) as db:
         rows = db.execute(
-            "SELECT text, location_json FROM document_fragments WHERE document_id = ? ORDER BY ordinal",
-            (str(document_id),),
+            """SELECT text, location_json FROM document_fragments
+               JOIN documents ON documents.id = document_fragments.document_id
+               WHERE document_id = ? AND dialog_id = ? ORDER BY ordinal""",
+            (str(document_id), str(dialog_id)),
         ).fetchall()
     return [Fragment(text, location_adapter.validate_json(location)) for text, location in rows]

@@ -1,4 +1,4 @@
-import type { Requirement } from '../../shared/contracts'
+import type { Evidence, Requirement } from '../../shared/contracts'
 
 export interface Citation {
   id: string
@@ -6,17 +6,33 @@ export interface Citation {
   clause: string
   quote: string
 }
-export interface Exchange { question: string; answer: string; citations: Citation[] }
-export interface Thread { id: string; turns: Exchange[] }
+export interface Exchange {
+  question: string
+  answer: string
+  citations: Citation[]
+  document_evidence?: Evidence[]
+  document_note?: string | null
+  generated?: boolean
+  modelError?: string
+}
+export interface Thread { id: string; turns: Exchange[]; firstFilename?: string }
 
 export const historyKey = 'fstec.dialogs.v1'
+export const legacyDialog = '00000000-0000-0000-0000-000000000000'
+const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i
 
 export function readHistory(): Thread[] {
   try {
     const items = JSON.parse(localStorage.getItem(historyKey) ?? '[]')
     if (!Array.isArray(items)) return []
-    return items.filter((t: Thread) => t && typeof t.id === 'string' && Array.isArray(t.turns) && t.turns.length &&
+    return items.filter((t: Thread) => t && typeof t.id === 'string' && uuid.test(t.id) && Array.isArray(t.turns) &&
+      (t.turns.length > 0 || typeof t.firstFilename === 'string') &&
+      (t.firstFilename === undefined || typeof t.firstFilename === 'string') &&
       t.turns.every(m => m && typeof m.question === 'string' && typeof m.answer === 'string' &&
+        (m.modelError === undefined || typeof m.modelError === 'string') &&
+        (m.document_evidence === undefined || (Array.isArray(m.document_evidence) && m.document_evidence.every(item =>
+          item && [item.document_id, item.filename, item.excerpt].every(s => typeof s === 'string') &&
+          item.location && ['pdf_page', 'docx_section', 'unknown'].includes(item.location.kind)))) &&
         Array.isArray(m.citations) && m.citations.every(c => c && [c.id, c.revision, c.clause, c.quote].every(s => typeof s === 'string'))))
   } catch { return [] }
 }
