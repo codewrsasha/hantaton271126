@@ -126,6 +126,15 @@ def save(path: Path, package: Package, digest: str) -> tuple[Revision, bool]:
 Operation = Literal["publish", "activate", "archive", "deactivate"]
 
 
+def delete_archived(path: Path, revision: str) -> None:
+    with connection(path, write=True) as db:
+        current = get_revision(db, revision)
+        if current.state != "archived" or current.active:
+            raise CatalogError(409, "Удалить можно только архивную редакцию.")
+        db.execute("DELETE FROM requirement_entries WHERE revision = ?", (revision,))
+        db.execute("DELETE FROM requirement_revisions WHERE revision = ?", (revision,))
+
+
 def transition(path: Path, revision: str, operation: Operation) -> Revision:
     with connection(path, write=True) as db:
         current = get_revision(db, revision)

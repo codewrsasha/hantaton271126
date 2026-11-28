@@ -1,5 +1,7 @@
+import { useRef, useState } from 'react'
 import { ModulePage } from '../../shared/ModulePage'
 import type { AnalysisRun } from '../../shared/contracts'
+import { RequirementsOverlay } from '../requirements/Page'
 import { RunResults } from './RunResults'
 
 const labels: Record<AnalysisRun['state'], string> = {
@@ -32,7 +34,11 @@ function RunTimeline({ run }: { run: AnalysisRun }) {
 }
 
 export default function AnalysisPage({ query }: { query?: string }) {
-  const runId = new URLSearchParams(query).get('run')
+  const params = new URLSearchParams(query)
+  const runId = params.get('run')
+  const linkedCatalog = params.get('catalog') === '1'
+  const [catalogOpen, setCatalogOpen] = useState(linkedCatalog)
+  const catalogButton = useRef<HTMLButtonElement>(null)
 
   return (
     <ModulePage<AnalysisRun[]>
@@ -42,6 +48,19 @@ export default function AnalysisPage({ query }: { query?: string }) {
       sectionTitle="Проверки"
       emptyTitle="Проверок пока нет"
       emptyDescription="Запуск анализа станет доступен после подключения обработки документов."
+      beforeData={<div className="analysis-catalog-action">
+        <button id="open-requirements" ref={catalogButton} className="action action-primary catalog-button" aria-haspopup="dialog"
+          onClick={() => setCatalogOpen(true)}>База требований</button>
+        {catalogOpen && <RequirementsOverlay query={linkedCatalog ? query : undefined} close={() => {
+          setCatalogOpen(false)
+          if (linkedCatalog) {
+            const runQuery = runId ? '?' + new URLSearchParams({ run: runId }) : ''
+            window.history.replaceState(null, '', '#analysis' + runQuery)
+            window.dispatchEvent(new Event('hashchange'))
+          }
+          requestAnimationFrame(() => (catalogButton.current ?? document.getElementById('open-requirements'))?.focus())
+        }} />}
+      </div>}
     >
       {(runs) => {
         if (!runs.length && !runId) return null

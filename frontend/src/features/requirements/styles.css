@@ -1,15 +1,81 @@
-.catalog-form, .catalog-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+.catalog-import, .revision-catalog, .catalog-dialog-content {
+  display: grid;
   gap: var(--space-3);
-  margin-block: var(--space-3);
 }
-.revision-catalog { display: grid; gap: var(--space-4); overflow-wrap: anywhere; }
-.catalog-form input, .revision-catalog select { max-width: 100%; }
+.catalog-import { justify-items: start; margin-block: var(--space-4); }
+.catalog-converter, .catalog-converter fieldset, .catalog-converter label { display: grid; gap: var(--space-2); }
+.catalog-converter { width: min(100%, 52rem); }
+.catalog-converter > button { justify-self: start; }
+.catalog-converter form { padding: var(--space-4); border: var(--rule); background: var(--surface); }
+.catalog-converter :is(input:not([type="file"]), textarea) {
+  width: 100%;
+  padding: var(--space-2);
+  border: var(--rule);
+  border-radius: var(--radius);
+}
+.catalog-converter textarea { resize: vertical; font-family: monospace; }
+.catalog-import p:empty, .catalog-dialog footer p:empty { display: none; }
+.catalog-errors { color: var(--status-gap); }
+.catalog-grid, .catalog-entries { display: grid; gap: var(--space-3); padding: 0; list-style: none; }
+.catalog-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr)); }
+.catalog-item, .catalog-button {
+  border: 1px solid var(--ink, #737373);
+  cursor: pointer;
+}
+.catalog-item {
+  inline-size: 100%;
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: var(--space-3);
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+.catalog-item:hover, .catalog-button:not(.action-primary, :disabled):hover {
+  border-color: var(--accent);
+  background: var(--accent-surface);
+}
+.catalog-button:not(.action-primary) { background: var(--surface); }
+.catalog-button.action-primary { border-color: var(--accent); }
+.catalog-button:disabled { opacity: .55; cursor: default; }
+.catalog-button.catalog-delete { color: var(--status-gap); border-color: currentColor; }
+.revision-card { display: grid; align-content: start; gap: var(--space-1); height: 100%; }
+.catalog-item .muted { font-size: var(--text-small); }
+.catalog-dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  inline-size: min(48rem, calc(100% - 2rem));
+  max-block-size: calc(100dvh - 2rem);
+  overflow: hidden;
+  border: var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: inherit;
+  box-shadow: 0 16px 48px rgb(0 0 0 / .23);
+}
+.catalog-dialog[open] { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+.requirements-overlay { inline-size: min(66rem, calc(100% - 2rem)); }
+.requirements-overlay[open] { grid-template-rows: auto minmax(0, 1fr); }
+.requirements-overlay > .catalog-dialog-content { display: block; }
+.analysis-catalog-action { margin-block-end: var(--space-4); }
+.catalog-dialog::backdrop { background: rgb(23 23 23 / .58); }
+.catalog-dialog > :is(header, footer), .catalog-dialog-content { padding: var(--space-4); }
+.catalog-dialog > header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--space-2);
+  border-block-end: var(--rule);
+}
+.catalog-dialog > footer { border-block-start: var(--rule); }
+.catalog-dialog-content { overflow: auto; overflow-wrap: anywhere; }
+.catalog-dialog h2 { overflow-wrap: anywhere; font-weight: var(--weight-bold); }
+.catalog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); }
+.catalog-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.catalog-entries summary span { margin-inline-start: var(--space-2); }
 .revision-meta { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-2) var(--space-4); }
 .revision-meta dt { color: var(--muted); }
-.normative-text { white-space: pre-wrap; }
+.normative-text { white-space: pre-wrap; padding: var(--space-3); }
 @media (max-width: 32rem) {
   .revision-meta { grid-template-columns: 1fr; }
 }

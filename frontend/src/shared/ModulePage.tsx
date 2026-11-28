@@ -10,20 +10,21 @@ interface ModulePageProps<T> {
   emptyDescription: string
   sectionTitle?: string
   beforeData?: ReactNode
+  hideHeading?: boolean
   children: (data: T) => ReactNode
 }
 
 export function ModulePage<T>({
-  title, description, path, refresh, emptyTitle, emptyDescription, sectionTitle, beforeData, children,
+  title, description, path, refresh, emptyTitle, emptyDescription, sectionTitle, beforeData, hideHeading, children,
 }: ModulePageProps<T>) {
   const result = useApi<T>(path, refresh)
 
   return (
     <>
-      <header className="page-heading">
+      {!hideHeading && <header className="page-heading">
         <h1>{title}</h1>
         <p className="muted">{description}</p>
-      </header>
+      </header>}
       {beforeData}
       <section className="module-data scene-reveal" aria-label={sectionTitle ?? title} aria-busy={result.state === 'loading'}>
         {sectionTitle && <h2 className="section-title">{sectionTitle}</h2>}

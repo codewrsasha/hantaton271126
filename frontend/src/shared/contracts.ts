@@ -43,10 +43,6 @@ export interface RequirementRevision {
   obtained_on: string
   source: string
   sha256: string
-  imported_at: string
-  reviewed_at: string | null
-  state: 'draft' | 'published' | 'archived'
-  active: boolean
   requirement_count: number
 }
 

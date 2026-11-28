@@ -1,5 +1,4 @@
 """Browser integration checks against a temporary database and the built frontend."""
-import json
 import os
 import shutil
 import socket
@@ -9,13 +8,11 @@ import time
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from urllib.request import ProxyHandler, Request, build_opener
 
 import uvicorn
 
 from app.config import FRONTEND_DIST
 from app.main import create_app
-from tests.test_requirements import package
 
 
 def browser_path():
@@ -45,40 +42,32 @@ class CatalogBrowserTests(unittest.TestCase):
                     time.sleep(.025)
                 self.assertTrue(server.started)
 
-                def page(fragment=""):
+                def page(fragment="", route="#analysis?catalog=1"):
                     result = subprocess.run([
                         browser_path(), "--headless", "--disable-gpu", "--disable-background-networking",
                         "--no-first-run", "--no-default-browser-check", "--disable-extensions",
                         "--user-data-dir=" + str(path / "profile"), "--virtual-time-budget=5000",
-                        "--dump-dom", origin + "/#requirements" + fragment,
+                        "--dump-dom", origin + "/" + route + fragment,
                     ], capture_output=True, timeout=45, check=True)
                     return result.stdout.decode("utf-8")
 
-                self.assertIn("База требований пока пуста", page())
-                client = build_opener(ProxyHandler({}))
-
-                def post(route, body=b""):
-                    req = Request(origin + "/api/v1/requirements/revisions" + route, data=body,
-                                  headers={"X-Catalog-Action": "1", "Content-Type": "application/json"})
-                    with client.open(req, timeout=5) as reply:
-                        return json.load(reply)
-
-                post("", json.dumps(package()).encode())
-                post("", json.dumps(package("test-b", "Синтетический вариант Б.")).encode())
-                post("/test-b/publish")
-                post("/test-b/activate")
-                html = page()
-                self.assertIn("Синтетический вариант Б.", html)
-                self.assertIn("test-a", html)
-                self.assertIn("test-b", html)
-                old = page("?requirement=T-1&revision=test-a&clause=%D0%A2%D0%B5%D1%81%D1%82+1")
-                self.assertIn("Синтетическая строка для теста.", old)
-                self.assertNotIn("Синтетический вариант Б.", old)
-                self.assertIn("Ссылка неполна", page("?requirement=T-1"))
-                self.assertIn("Требование по этой ссылке не найдено", page("?requirement=T-1&revision=test-a&clause=X"))
-                # The server keeps serving the UI after loss of its disposable database.
-                (path / "ui.db").unlink()
-                self.assertIn("Не удалось получить данные", page())
+                analysis = page(route="#analysis")
+                self.assertIn('id="open-requirements"', analysis)
+                self.assertNotIn('<dialog', analysis)
+                home = page(route="#chat")
+                self.assertIn("История чатов", home)
+                self.assertIn("Рабочая область", home)
+                self.assertIn('aria-label="Сообщение"', home)
+                catalog = page()
+                self.assertIn('id="source-title"', catalog)
+                self.assertIn("FSTEC117-MAIN-001", catalog)
+                self.assertIn("FSTEC117-APP-011", catalog)
+                self.assertNotIn("Добавить требования", catalog)
+                self.assertNotIn("Архивировать", catalog)
+                deep = page("?requirement=FSTEC117-MAIN-001&revision=117-2026-05-08", route="#requirements")
+                self.assertIn('aria-expanded="true"', deep)
+                self.assertIn('class="clause-text"', deep)
+                self.assertIn("Требование по этой ссылке не найдено", page("&requirement=unknown"))
             finally:
                 server.should_exit = True
                 thread.join(timeout=10)

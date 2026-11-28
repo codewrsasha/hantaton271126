@@ -163,11 +163,11 @@ export default function DocumentsPage({ query }: { query?: string }) {
   const [refresh, setRefresh] = useState(0)
   return (
     <ModulePage<DocumentRecord[]>
-      title="Документы"
+      hideHeading title="Документы"
       description="Загрузите материалы для предварительной проверки."
       path="/documents"
       refresh={refresh}
-      sectionTitle="Документы на сервере"
+      sectionTitle="Загруженные файлы"
       emptyTitle="Документов пока нет"
       emptyDescription="Выберите и загрузите PDF или DOCX, чтобы извлечь текст."
       beforeData={documentId ? undefined : <FilePicker onStored={() => setRefresh((value) => value + 1)} />}

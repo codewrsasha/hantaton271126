@@ -30,7 +30,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         path.parent.mkdir(parents=True, exist_ok=True)
         check_database(path)
         documents.initialize(path)
-        requirements.initialize(path)
+        requirements.catalog()
         app.state.database_path = path
         yield
 
@@ -42,7 +42,6 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         redoc_url=None,
         openapi_url="/api/openapi.json",
     )
-    app.add_exception_handler(requirements.CatalogError, requirements.catalog_error_response)
     api = APIRouter(prefix="/api/v1")
 
     @api.get("/health", response_model=Health, tags=["system"])
