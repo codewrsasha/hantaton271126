@@ -5,7 +5,7 @@ import { NumberTicker } from '../../shared/NumberTicker'
 
 const metrics = [
   { key: 'documents', label: 'Документы', page: 'documents' },
-  { key: 'requirements', label: 'Требования', page: 'requirements' },
+  { key: 'requirements', label: 'Требования активной редакции', page: 'requirements' },
   { key: 'analyses', label: 'Проверки', page: 'analysis' },
   { key: 'reports', label: 'Отчёты', page: 'reports' },
 ] as const

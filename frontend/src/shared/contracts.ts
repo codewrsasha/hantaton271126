@@ -36,6 +36,20 @@ export interface Requirement {
   }
 }
 
+export interface RequirementRevision {
+  order_number: '117'
+  revision: string
+  revision_date: string
+  obtained_on: string
+  source: string
+  sha256: string
+  imported_at: string
+  reviewed_at: string | null
+  state: 'draft' | 'published' | 'archived'
+  active: boolean
+  requirement_count: number
+}
+
 export type Location =
   | { kind: 'pdf_page'; page: number }
   | { kind: 'docx_section'; section: string }

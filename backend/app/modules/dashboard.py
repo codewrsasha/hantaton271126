@@ -23,7 +23,7 @@ def summary(request: Request) -> DashboardSummary:
         raise HTTPException(503, "Не удалось прочитать сводку из локального хранилища.") from error
     return DashboardSummary(
         documents=document_count,
-        requirements=len(requirements.list_requirements()),
+        requirements=requirements.storage.active_count(request.app.state.database_path),
         analyses=len(analysis.list_analyses()),
         reports=len(reports.list_reports()),
     )
