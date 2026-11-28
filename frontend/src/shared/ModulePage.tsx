@@ -1,41 +1,48 @@
-import { CircleAlert, LoaderCircle } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useApi } from './api'
 
 interface ModulePageProps<T> {
   title: string
   description: string
-  icon: LucideIcon
   path: string
   emptyTitle: string
   emptyDescription: string
+  sectionTitle?: string
+  beforeData?: ReactNode
   children: (data: T) => ReactNode
 }
 
 export function ModulePage<T>({
-  title, description, icon: Icon, path, emptyTitle, emptyDescription, children,
+  title, description, path, emptyTitle, emptyDescription, sectionTitle, beforeData, children,
 }: ModulePageProps<T>) {
   const result = useApi<T>(path)
 
   return (
     <>
-      <div className="page-heading">
+      <header className="page-heading">
         <h1>{title}</h1>
-        <p>{description}</p>
-      </div>
-      <section className="panel empty-module" aria-live="polite">
+        <p className="muted">{description}</p>
+      </header>
+      {beforeData}
+      <section className="module-data scene-reveal" aria-label={sectionTitle ?? title} aria-busy={result.state === 'loading'}>
+        {sectionTitle && <h2 className="section-title">{sectionTitle}</h2>}
         {result.state === 'loading' && (
-          <div className="empty-state"><LoaderCircle className="animate-spin" /><p>Загрузка данных…</p></div>
+          <div className="module-state skeleton-state" role="status">
+            <span className="sr-only">Загрузка данных…</span>
+            <span className="skeleton" aria-hidden="true" />
+            <span className="skeleton" aria-hidden="true" />
+          </div>
         )}
         {result.state === 'error' && (
-          <div className="empty-state"><CircleAlert /><p>Не удалось получить данные. Проверьте подключение к локальному серверу.</p></div>
+          <div className="module-state" role="status">
+            <strong>Не удалось получить данные</strong>
+            <p className="muted">Проверьте, запущен ли локальный сервер.</p>
+          </div>
         )}
         {result.state === 'ready' && (children(result.data) ?? (
-          <div className="empty-state">
-            <div className="icon-tile"><Icon size={23} /></div>
-            <h2>{emptyTitle}</h2>
-            <p>{emptyDescription}</p>
+          <div className="module-state">
+            <strong>{emptyTitle}</strong>
+            <p className="muted">{emptyDescription}</p>
           </div>
         ))}
       </section>
