@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ModulePage } from '../../shared/ModulePage'
 import type { AnalysisRun, DocumentRecord } from '../../shared/contracts'
+import { RequirementsOverlay } from '../requirements/Page'
 import { RunResults } from './RunResults'
 import { StartForm } from './StartForm'
 import '../../shared/workflow.css'
@@ -86,7 +87,12 @@ function Runs({ runs, runId, reload }: { runs: AnalysisRun[]; runId: string | nu
 }
 
 export default function AnalysisPage({ query }: { query?: string }) {
-  const runId = new URLSearchParams(query).get('run')
+  const params = new URLSearchParams(query)
+  const runId = params.get('run')
+  const linkedCatalog = params.get('catalog') === '1'
+  const [catalogOpen, setCatalogOpen] = useState(linkedCatalog)
+  const [catalogRefresh, setCatalogRefresh] = useState(0)
+  const catalogButton = useRef<HTMLButtonElement>(null)
   const [refresh, setRefresh] = useState(0)
   const reload = useCallback(() => setRefresh((value) => value + 1), [])
 
@@ -96,7 +102,25 @@ export default function AnalysisPage({ query }: { query?: string }) {
       description="Предварительные результаты для проверки специалистом."
       path="/analyses"
       refresh={refresh}
-      beforeData={runId ? undefined : <StartForm onFinished={reload} />}
+      beforeData={(
+        <>
+          <div className="analysis-catalog-action">
+            <button id="open-requirements" ref={catalogButton} className="action action-primary catalog-button" aria-haspopup="dialog"
+              onClick={() => setCatalogOpen(true)}>База требований</button>
+            {catalogOpen && <RequirementsOverlay query={linkedCatalog ? query : undefined} close={() => {
+              setCatalogOpen(false)
+              setCatalogRefresh((value) => value + 1)
+              if (linkedCatalog) {
+                const runQuery = runId ? '?' + new URLSearchParams({ run: runId }) : ''
+                window.history.replaceState(null, '', '#analysis' + runQuery)
+                window.dispatchEvent(new Event('hashchange'))
+              }
+              requestAnimationFrame(() => (catalogButton.current ?? document.getElementById('open-requirements'))?.focus())
+            }} />}
+          </div>
+          {!runId && <StartForm catalogRefresh={catalogRefresh} onFinished={reload} />}
+        </>
+      )}
       sectionTitle="Проверки"
       emptyTitle="Проверок пока нет"
       emptyDescription="Выберите документы и запустите предварительный анализ."

@@ -4,14 +4,12 @@ import ChatPage from '../features/chat/Page'
 import DashboardPage from '../features/dashboard/Page'
 import DocumentsPage from '../features/documents/Page'
 import ReportsPage from '../features/reports/Page'
-import RequirementsPage from '../features/requirements/Page'
 import { useApi } from '../shared/api'
 import type { Health } from '../shared/contracts'
 
 const pages = [
   { id: 'dashboard', label: 'Обзор', component: DashboardPage },
   { id: 'documents', label: 'Документы', component: DocumentsPage },
-  { id: 'requirements', label: 'Требования', component: RequirementsPage },
   { id: 'analysis', label: 'Анализ', component: AnalysisPage },
   { id: 'reports', label: 'Отчёты', component: ReportsPage },
   { id: 'chat', label: 'ИИ-чат', component: ChatPage },
@@ -35,7 +33,8 @@ function currentHash() {
 export default function App() {
   const hash = useSyncExternalStore(subscribe, currentHash)
   const [route, query] = hash.split('?')
-  const active = pages.find((page) => page.id === route) ?? pages[0]
+  const legacyCatalog = route === 'requirements'
+  const active = pages.find((page) => page.id === (legacyCatalog ? 'analysis' : route)) ?? pages[0]
   const Page = active.component
   const health = useApi<Health>('/health', active.id)
   const nav = useRef<HTMLElement>(null)
@@ -87,8 +86,8 @@ export default function App() {
         </div>
       </header>
 
-      <main className="content page-enter" id="main" ref={main} tabIndex={-1} key={active.id}>
-        <Page health={health} query={query} />
+      <main className="content page-enter" id="main" ref={main} tabIndex={-1} key={hash}>
+        <Page health={health} query={legacyCatalog ? 'catalog=1' + (query ? '&' + query : '') : query} />
       </main>
 
       <footer className="app-footer">

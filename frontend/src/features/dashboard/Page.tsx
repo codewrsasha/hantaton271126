@@ -5,7 +5,7 @@ import { NumberTicker } from '../../shared/NumberTicker'
 
 const metrics = [
   { key: 'documents', label: 'Документы', page: 'documents' },
-  { key: 'requirements', label: 'Требования активной редакции', page: 'requirements' },
+  { key: 'requirements', label: 'Требования активной редакции', page: 'analysis?catalog=1' },
   { key: 'analyses', label: 'Проверки', page: 'analysis' },
   { key: 'reports', label: 'Отчёты', page: 'reports' },
 ] as const
@@ -39,7 +39,7 @@ export default function DashboardPage({ health }: {
         <div className="order-grid">
           <p>Приказ ФСТЭК России</p>
           <p className="order-number"><span>№</span> 117</p>
-          <a className="text-action" href="#requirements">К базе требований</a>
+          <a className="text-action" href="#analysis?catalog=1">К базе требований</a>
         </div>
       </header>
 

@@ -11,6 +11,7 @@ from app.main import create_app
 from app.modules import documents, requirements
 from app.modules.requirements import storage
 from app.modules.requirements.models import MAX_BYTES
+from tests.test_documents import BOUNDARY, form
 
 BASE = "/api/v1/requirements"
 
@@ -45,7 +46,8 @@ class RequirementsTests(unittest.IsolatedAsyncioTestCase):
                         "method": method, "http_version": "1.1", "scheme": "http",
                         "path": path, "query_string": b"", "headers": headers,
                         "server": ("localhost", 80), "client": (client, 1234)}, receive, send)
-        return sent[0]["status"], json.loads(b"".join(m["body"] for m in sent[1:]))
+        body = b"".join(m["body"] for m in sent[1:])
+        return sent[0]["status"], json.loads(body) if body else None
 
     async def upload(self, data):
         return await self.request("POST", BASE + "/revisions", json.dumps(data).encode())
@@ -104,6 +106,19 @@ class RequirementsTests(unittest.IsolatedAsyncioTestCase):
         await self.change("test-b", "deactivate")
         self.assertEqual(await self.request("GET", BASE), (200, []))
 
+    async def test_delete_archived_revision(self):
+        await self.upload(package())
+        await self.upload(package("test-b"))
+        route = BASE + "/revisions/test-a"
+        self.assertEqual((await self.request("DELETE", route, marker=False))[0], 403)
+        self.assertEqual((await self.request("DELETE", route))[0], 409)
+        await self.change("test-a", "archive")
+        self.assertEqual(await self.request("DELETE", route), (204, None))
+        self.assertEqual((await self.request("DELETE", route))[0], 404)
+        self.assertEqual((await self.request("GET", route + "/requirements"))[0], 404)
+        rows = (await self.request("GET", BASE + "/revisions"))[1]
+        self.assertEqual([row["revision"] for row in rows], ["test-b"])
+
     async def test_invalid_packages(self):
         for key, value in (("order_number", "118"), ("revision", "../x"), ("source", " "),
                            ("revision_date", 123), ("obtained_on", "2000-02-30"), ("requirements", [])):
@@ -137,3 +152,27 @@ class RequirementsTests(unittest.IsolatedAsyncioTestCase):
         with ThreadPoolExecutor(2) as pool:
             results = list(pool.map(lambda _: storage.save(self.path, model, digest)[1], range(2)))
         self.assertCountEqual(results, [True, False])
+
+    async def test_convert_document(self):
+        multipart = b"multipart/form-data; boundary=" + BOUNDARY
+        txt = "1. Первый пункт\n2. Второй пункт".encode("utf-8")
+        status, converted = await self.request("POST", BASE + "/convert", form(txt, "sample.txt"), content=multipart)
+        self.assertEqual(status, 200)
+        pkg = converted["package"]
+        self.assertEqual([item["clause"] for item in pkg["requirements"]], ["1", "2"])
+        self.assertIn("sample.txt", pkg["source"])
+        self.assertIn(hashlib.sha256(txt).hexdigest(), pkg["source"])
+
+        rtf = b"{\\rtf1 1. First clause}"
+        status, rtf_converted = await self.request("POST", BASE + "/convert", form(rtf, "sample.rtf"), content=multipart)
+        self.assertEqual(status, 200)
+        self.assertEqual(rtf_converted["package"]["requirements"][0]["clause"], "1")
+
+        self.assertEqual((await self.request(
+            "POST", BASE + "/convert", form(b"{\\rtf1 \\object}", "bad.rtf"), content=multipart))[0], 422)
+        self.assertEqual((await self.request(
+            "POST", BASE + "/convert", form(b"binary", "bad.exe"), content=multipart))[0], 415)
+        self.assertEqual((await self.request(
+            "POST", BASE + "/convert", form(b"   \n  ", "empty.txt"), content=multipart))[0], 422)
+        self.assertEqual((await self.request(
+            "POST", BASE + "/convert", form(txt, "sample.txt"), content=multipart, marker=False))[0], 403)

@@ -45,15 +45,18 @@ class CatalogBrowserTests(unittest.TestCase):
                     time.sleep(.025)
                 self.assertTrue(server.started)
 
-                def page(fragment=""):
+                def page(fragment="", route="#analysis?catalog=1"):
                     result = subprocess.run([
                         browser_path(), "--headless", "--disable-gpu", "--disable-background-networking",
                         "--no-first-run", "--no-default-browser-check", "--disable-extensions",
                         "--user-data-dir=" + str(path / "profile"), "--virtual-time-budget=5000",
-                        "--dump-dom", origin + "/#requirements" + fragment,
+                        "--dump-dom", origin + "/" + route + fragment,
                     ], capture_output=True, timeout=45, check=True)
                     return result.stdout.decode("utf-8")
 
+                analysis = page(route="#analysis")
+                self.assertIn('id="open-requirements"', analysis)
+                self.assertNotIn('<dialog', analysis)
                 self.assertIn("База требований пока пуста", page())
                 client = build_opener(ProxyHandler({}))
 
@@ -68,14 +71,22 @@ class CatalogBrowserTests(unittest.TestCase):
                 post("/test-b/publish")
                 post("/test-b/activate")
                 html = page()
-                self.assertIn("Синтетический вариант Б.", html)
+                self.assertIn("Добавить требования", html)
+                self.assertIn('aria-haspopup="dialog"', html)
+                self.assertNotIn("Синтетический вариант Б.", html)
                 self.assertIn("test-a", html)
                 self.assertIn("test-b", html)
-                old = page("?requirement=T-1&revision=test-a&clause=%D0%A2%D0%B5%D1%81%D1%82+1")
+                citation = "requirement=T-1&revision=test-a&clause=%D0%A2%D0%B5%D1%81%D1%82+1"
+                old = page("&" + citation)
+                self.assertIn('class="catalog-dialog requirements-overlay" aria-labelledby="requirements-title" open', old)
+                self.assertIn('class="catalog-dialog" aria-labelledby="revision-title" open', old)
+                self.assertIn("Архивировать", old)
+                self.assertIn("Опубликовать", old)
                 self.assertIn("Синтетическая строка для теста.", old)
                 self.assertNotIn("Синтетический вариант Б.", old)
-                self.assertIn("Ссылка неполна", page("?requirement=T-1"))
-                self.assertIn("Требование по этой ссылке не найдено", page("?requirement=T-1&revision=test-a&clause=X"))
+                self.assertIn("Синтетическая строка для теста.", page("?" + citation, route="#requirements"))
+                self.assertIn("Ссылка неполна", page("&requirement=T-1"))
+                self.assertIn("Требование по этой ссылке не найдено", page("&requirement=T-1&revision=test-a&clause=X"))
                 # The server keeps serving the UI after loss of its disposable database.
                 (path / "ui.db").unlink()
                 self.assertIn("Не удалось получить данные", page())

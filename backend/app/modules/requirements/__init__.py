@@ -8,7 +8,10 @@ from starlette.requests import ClientDisconnect
 from starlette.responses import JSONResponse
 
 from ...contracts import Requirement
+from ..documents.models import RejectedUpload
+from ..documents.upload import receive_file
 from . import storage
+from .conversion import Conversion, convert
 from .models import MAX_BYTES, CatalogError, ErrorResponse, Package, Revision, parse_package
 from .storage import initialize
 
@@ -27,7 +30,7 @@ def local_write(request: Request) -> None:
         raise CatalogError(403, "Изменение каталога разрешено только через локальный интерфейс.")
 
 
-errors = {code: {"model": ErrorResponse} for code in (403, 404, 408, 409, 413, 415, 422, 503)}
+errors = {code: {"model": ErrorResponse} for code in (400, 403, 404, 408, 409, 413, 415, 422, 429, 503)}
 router = APIRouter(prefix="/requirements", tags=["requirements"], responses=errors)
 
 
@@ -85,6 +88,22 @@ async def import_revision(request: Request, response: Response) -> Revision:
     return revision
 
 
+@router.post("/convert", dependencies=[Depends(local_write)])
+async def convert_document(request: Request) -> Conversion:
+    slots = request.app.state.document_upload_slots
+    if slots.locked():
+        raise CatalogError(429, "Сервер обрабатывает другие загрузки. Повторите попытку позже.")
+    async with slots:
+        try:
+            async with asyncio.timeout(30):
+                filename, content = await receive_file(request, request.app.state.document_max_bytes)
+            return await run_in_threadpool(convert, filename, content)
+        except TimeoutError as error:
+            raise CatalogError(408, "Истекло время приёма файла.") from error
+        except RejectedUpload as error:
+            raise CatalogError(error.status_code, str(error)) from error
+
+
 @router.post("/revisions/{revision}/publish", dependencies=[Depends(local_write)])
 def publish(request: Request, revision: str) -> Revision:
     return storage.transition(request.app.state.database_path, revision, "publish")
@@ -103,3 +122,9 @@ def archive(request: Request, revision: str) -> Revision:
 @router.post("/revisions/{revision}/deactivate", dependencies=[Depends(local_write)])
 def deactivate(request: Request, revision: str) -> Revision:
     return storage.transition(request.app.state.database_path, revision, "deactivate")
+
+
+@router.delete("/revisions/{revision}", dependencies=[Depends(local_write)], status_code=204)
+def delete_revision(request: Request, revision: str) -> Response:
+    storage.delete_archived(request.app.state.database_path, revision)
+    return Response(status_code=204)
