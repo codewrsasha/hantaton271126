@@ -18,12 +18,12 @@ class DashboardSummary(BaseModel):
 @router.get("/summary", response_model=DashboardSummary)
 def summary(request: Request) -> DashboardSummary:
     try:
-        document_count = documents.count_documents(request.app.state.database_path)
+        path = request.app.state.database_path
+        return DashboardSummary(
+            documents=documents.count_documents(path),
+            requirements=requirements.storage.active_count(path),
+            analyses=analysis.count_analyses(path),
+            reports=reports.count_reports(path),
+        )
     except sqlite3.Error as error:
         raise HTTPException(503, "Не удалось прочитать сводку из локального хранилища.") from error
-    return DashboardSummary(
-        documents=document_count,
-        requirements=requirements.storage.active_count(request.app.state.database_path),
-        analyses=len(analysis.list_analyses()),
-        reports=len(reports.list_reports()),
-    )

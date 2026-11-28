@@ -31,6 +31,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         check_database(path)
         documents.initialize(path)
         requirements.initialize(path)
+        analysis.initialize(path)
+        reports.initialize(path)
         app.state.database_path = path
         yield
 

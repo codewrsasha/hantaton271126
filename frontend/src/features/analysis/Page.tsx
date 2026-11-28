@@ -1,12 +1,22 @@
+import { useCallback, useEffect, useState } from 'react'
 import { ModulePage } from '../../shared/ModulePage'
-import type { AnalysisRun } from '../../shared/contracts'
+import type { AnalysisRun, DocumentRecord } from '../../shared/contracts'
 import { RunResults } from './RunResults'
+import { StartForm } from './StartForm'
+import '../../shared/workflow.css'
 
 const labels: Record<AnalysisRun['state'], string> = {
   queued: 'В очереди',
   running: 'Выполняется',
   completed: 'Завершена',
   failed: 'Завершилась с ошибкой',
+}
+
+const documentLabels: Record<DocumentRecord['state'], string> = {
+  received: 'Получен',
+  extracted: 'Текст извлечён',
+  needs_review: 'Требуется проверка извлечения',
+  failed: 'Ошибка извлечения',
 }
 
 function RunTimeline({ run }: { run: AnalysisRun }) {
@@ -31,42 +41,67 @@ function RunTimeline({ run }: { run: AnalysisRun }) {
   )
 }
 
+function Runs({ runs, runId, reload }: { runs: AnalysisRun[]; runId: string | null; reload: () => void }) {
+  const visible = runId ? runs.filter((run) => run.id === runId) : runs
+  const inProgress = visible.some((run) => run.state === 'running' || run.state === 'queued')
+  useEffect(() => {
+    if (!inProgress) return
+    const timer = window.setTimeout(reload, 1500)
+    return () => window.clearTimeout(timer)
+  }, [inProgress, reload])
+
+  return (
+    <>
+      {runId && <p className="source-navigation"><a className="text-action" href="#analysis">Все проверки</a></p>}
+      {visible.length ? (
+        <ul className="run-list stagger-list">
+          {visible.map((run) => (
+            <li key={run.id} className="run" data-state={run.state}>
+              <header className="run-header">
+                <div>
+                  <h3>{labels[run.state]}</h3>
+                  <p className="muted run-id">{new Date(run.created_at).toLocaleString('ru-RU')} · {run.id}</p>
+                </div>
+                <span className="muted">Документов: {run.document_ids.length}</span>
+              </header>
+              <RunTimeline run={run} />
+              <p>Редакция <strong>{run.revision}</strong> · {run.source}</p>
+              <ul className="run-documents">
+                {run.documents.map((doc) => (
+                  <li key={doc.id}>
+                    <a className="text-action" href={`#documents?document=${encodeURIComponent(doc.id)}`}>{doc.filename}</a>
+                    <p className="muted">{documentLabels[doc.state]} · фрагментов: {doc.fragment_count}</p>
+                    {doc.issue && <p className="muted">{doc.issue.message}</p>}
+                  </li>
+                ))}
+              </ul>
+              {run.error && <p role="alert">{run.error}</p>}
+              {run.results.length > 0 && <RunResults runId={run.id} initialResults={run.results} completed={run.state === 'completed'} />}
+            </li>
+          ))}
+        </ul>
+      ) : <p className="module-state">Проверка не найдена.</p>}
+    </>
+  )
+}
+
 export default function AnalysisPage({ query }: { query?: string }) {
   const runId = new URLSearchParams(query).get('run')
+  const [refresh, setRefresh] = useState(0)
+  const reload = useCallback(() => setRefresh((value) => value + 1), [])
 
   return (
     <ModulePage<AnalysisRun[]>
       title="Анализ соответствия"
-      description="Ход проверки и предварительные результаты по требованиям."
+      description="Предварительные результаты для проверки специалистом."
       path="/analyses"
+      refresh={refresh}
+      beforeData={runId ? undefined : <StartForm onFinished={reload} />}
       sectionTitle="Проверки"
       emptyTitle="Проверок пока нет"
-      emptyDescription="Запуск анализа станет доступен после подключения обработки документов."
+      emptyDescription="Выберите документы и запустите предварительный анализ."
     >
-      {(runs) => {
-        if (!runs.length && !runId) return null
-        const visibleRuns = runId ? runs.filter((run) => run.id === runId) : runs
-        return (
-          <>
-            {runId && <p className="source-navigation"><a className="text-action" href="#analysis">Все проверки</a></p>}
-            {visibleRuns.length ? (
-              <ul className="run-list stagger-list">
-                {visibleRuns.map((run) => (
-                  <li key={run.id} className="run" data-state={run.state}>
-                    <header className="run-header">
-                      <div><h3>{labels[run.state]}</h3><p className="muted run-id">{run.id}</p></div>
-                      <span className="muted">Документов: {run.document_ids.length}</span>
-                    </header>
-                    <RunTimeline run={run} />
-                    {run.results.length > 0 && <RunResults results={run.results} completed={run.state === 'completed'} />}
-                    {!run.results.length && run.state === 'completed' && <p className="module-state">Нет результатов по требованиям.</p>}
-                  </li>
-                ))}
-              </ul>
-            ) : <p className="module-state">Проверка не найдена.</p>}
-          </>
-        )
-      }}
+      {(runs) => runs.length || runId ? <Runs runs={runs} runId={runId} reload={reload} /> : null}
     </ModulePage>
   )
 }

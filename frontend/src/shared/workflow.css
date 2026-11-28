@@ -1,0 +1,42 @@
+.workflow-form {
+  display: grid;
+  gap: var(--space-3);
+  margin-block-end: var(--space-6);
+  padding: var(--space-4);
+  background: var(--surface);
+  border: var(--rule);
+  overflow-wrap: anywhere;
+}
+
+.workflow-form fieldset {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--space-2);
+}
+
+.workflow-form legend { font-weight: var(--weight-semibold); margin-block-end: var(--space-2); }
+.workflow-form :is(select, textarea) {
+  display: block;
+  width: 100%;
+  min-block-size: var(--target);
+  padding: var(--space-2);
+  border: var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+}
+.workflow-form textarea { resize: vertical; }
+.workflow-form button { justify-self: start; }
+.workflow-form button:disabled { opacity: .55; transform: none; cursor: default; }
+.workflow-choice, .workflow-actions {
+  display: flex;
+  gap: var(--space-2) var(--space-4);
+}
+.workflow-choice { align-items: flex-start; padding-block: var(--space-1); }
+.workflow-choice input { margin-block-start: .3em; accent-color: var(--accent); }
+.workflow-choice small { display: block; }
+.workflow-actions { flex-wrap: wrap; align-items: center; }
+.review-form { margin-block-end: 0; }
+.run-documents { margin-block: var(--space-3); padding-inline-start: var(--space-4); list-style: disc; }
+.run-documents p { overflow-wrap: anywhere; }
+.report-download-error { flex-basis: 100%; }

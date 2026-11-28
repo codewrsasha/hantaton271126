@@ -6,6 +6,7 @@ data/
 uploads/
 models/
 wheelhouse/
+synthetic_test_documents/
 *.sqlite
 *.sqlite3
 *.db

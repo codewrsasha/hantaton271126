@@ -65,17 +65,31 @@ def save(path: Path, document: Document, original: bytes, fragments: list[Fragme
         )
 
 
+def _document(row) -> Document:
+    id_, filename, format_, size, state, issue = row
+    return Document(
+        id=id_, filename=filename, format=format_, size_bytes=size, state=state,
+        issue=DocumentIssue.model_validate_json(issue) if issue is not None else None,
+    )
+
+
+def get_document(path: Path, document_id: UUID) -> Document | None:
+    """Read metadata for one document without loading the original BLOB."""
+    with connection(path) as db:
+        row = db.execute(
+            "SELECT id, filename, format, size_bytes, state, issue_json FROM documents WHERE id = ?",
+            (str(document_id),),
+        ).fetchone()
+    return _document(row) if row is not None else None
+
+
 def list_documents(path: Path) -> list[Document]:
     with connection(path) as db:
         rows = db.execute(
             "SELECT id, filename, format, size_bytes, state, issue_json FROM documents ORDER BY rowid DESC"
         ).fetchall()
 
-    return [
-        Document(id=id_, filename=filename, format=format_, size_bytes=size, state=state,
-                 issue=DocumentIssue.model_validate_json(issue) if issue is not None else None)
-        for id_, filename, format_, size, state, issue in rows
-    ]
+    return [_document(row) for row in rows]
 
 
 def count_documents(path: Path) -> int:

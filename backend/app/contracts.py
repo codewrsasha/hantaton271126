@@ -1,7 +1,7 @@
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class RegulatorySource(BaseModel):
@@ -35,12 +35,15 @@ Location = Annotated[
 ]
 
 
+EvidenceRelation = Literal["supports", "contradicts", "context"]
+
+
 class Evidence(BaseModel):
     document_id: UUID
     filename: str = Field(min_length=1)
     excerpt: str = Field(min_length=1)
     location: Location
-    relation: Literal["supports", "contradicts", "context"]
+    relation: EvidenceRelation
 
 
 ComplianceStatus = Literal[
@@ -55,6 +58,12 @@ ComplianceStatus = Literal[
 class ExpertReview(BaseModel):
     comment: str = Field(min_length=1)
     corrected_status: ComplianceStatus | None = None
+    evidence_relations: dict[int, EvidenceRelation] = Field(default_factory=dict)
+
+    @field_validator("comment", mode="before")
+    @classmethod
+    def trim_comment(cls, value):
+        return value.strip() if isinstance(value, str) else value
 
 
 class AnalysisResult(Requirement):
@@ -66,15 +75,24 @@ class AnalysisResult(Requirement):
 
     @model_validator(mode="after")
     def validate_evidence(self) -> "AnalysisResult":
-        status = self.review.corrected_status if self.review else None
-        for current in (self.status, status):
-            if current == "соответствует" and not any(
-                item.relation == "supports" and item.location.kind != "unknown"
-                for item in self.evidence
-            ):
-                raise ValueError("Compliance requires traceable supporting evidence")
-            if current == "не соответствует" and not any(
-                item.relation == "contradicts" for item in self.evidence
-            ):
-                raise ValueError("Noncompliance requires contradictory evidence")
+        self.check_status(self.status, [item.relation for item in self.evidence])
+        if self.review:
+            assignments = self.review.evidence_relations
+            if any(not 0 <= index < len(self.evidence) for index in assignments):
+                raise ValueError("Review references unknown evidence")
+            if self.review.corrected_status:
+                corrected = self.review.corrected_status
+                self.check_status("соответствует" if corrected == "частично соответствует" else corrected, [
+                    assignments.get(index, item.relation)
+                    for index, item in enumerate(self.evidence)
+                ])
         return self
+
+    def check_status(self, status: ComplianceStatus, relations: list[EvidenceRelation]) -> None:
+        if status == "соответствует" and not any(
+            relation == "supports" and item.location.kind != "unknown"
+            for item, relation in zip(self.evidence, relations)
+        ):
+            raise ValueError("Compliance requires traceable supporting evidence")
+        if status == "не соответствует" and "contradicts" not in relations:
+            raise ValueError("Noncompliance requires contradictory evidence")

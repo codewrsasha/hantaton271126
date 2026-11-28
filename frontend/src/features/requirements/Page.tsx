@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { ModulePage } from '../../shared/ModulePage'
 import { useApi } from '../../shared/api'
 import type { Requirement, RequirementRevision } from '../../shared/contracts'
@@ -24,7 +24,7 @@ export default function RequirementsPage({ query }: { query?: string }) {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [file, setFile] = useState<File | null>(null)
-  const [selected, setSelected] = useState('')
+  const fileInput = useRef<HTMLInputElement>(null)
   const params = new URLSearchParams(query)
   const id = params.get('requirement'), revision = params.get('revision'), clause = params.get('clause')
   const citation = params.has('requirement') || params.has('clause')
@@ -32,17 +32,31 @@ export default function RequirementsPage({ query }: { query?: string }) {
     || ['requirement', 'revision', 'clause'].some(key => params.getAll(key).length > 1)
 
   async function write(path: string, success: string, body?: File) {
+    const sourceHash = window.location.hash
     setBusy(true)
     setMessage('Сохранение…')
     try {
       const response = await fetch('/api/v1' + path, { method: 'POST', body,
         headers: { 'X-Catalog-Action': '1', ...(body ? { 'Content-Type': 'application/json' } : {}) } })
-      const data = await response.json()
-      if (!response.ok) {
-        setMessage(typeof data.detail === 'string' ? data.detail : 'Сервер отклонил операцию.')
+      if (path === revisionsPath && (response.status === 404 || response.status === 405)) {
+        setMessage('Маршрут импорта недоступен. Проверьте, что запущен FastAPI из текущей версии проекта.')
         return
       }
-      setSelected(data.revision)
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        setMessage(typeof data?.detail === 'string' ? data.detail : 'Сервер отклонил операцию.')
+        return
+      }
+      if (typeof data?.revision !== 'string') {
+        setMessage('Локальный сервер вернул неожиданный ответ. Обновите каталог для проверки результата.')
+        return
+      }
+      if (body) {
+        setFile(null)
+        if (fileInput.current) fileInput.current.value = ''
+        if (window.location.hash === sourceHash)
+          window.location.hash = 'requirements?revision=' + encodeURIComponent(data.revision)
+      }
       setMessage(body && response.status === 200 ? 'Этот пакет уже импортирован.' : success)
       setRefresh(n => n + 1)
     } catch {
@@ -61,7 +75,7 @@ export default function RequirementsPage({ query }: { query?: string }) {
         }
       }}>
         <label htmlFor="catalog-file">Пакет редакции · JSON до 4 МиБ</label>
-        <input id="catalog-file" type="file" accept=".json,application/json" disabled={busy}
+        <input ref={fileInput} id="catalog-file" type="file" accept=".json,application/json" disabled={busy}
           onChange={e => setFile(e.target.files?.[0] ?? null)} />
         <button className="action" disabled={!file || busy}>Импортировать</button>
       </form>
@@ -69,7 +83,7 @@ export default function RequirementsPage({ query }: { query?: string }) {
     </>}>
     {rows => {
       const active = rows.find(r => r.active)
-      const chosen = rows.find(r => r.revision === (revision ?? (selected || active?.revision || rows[0]?.revision)))
+      const chosen = rows.find(r => r.revision === (revision ?? active?.revision ?? rows[0]?.revision))
       const badLink = invalid || (revision !== null && !chosen)
       if (!rows.length && !badLink) return null
       const action = (operation: string, question: string, success: string) => {

@@ -6,6 +6,22 @@ export async function getApi<T>(path: string, signal?: AbortSignal): Promise<T> 
   return response.json() as Promise<T>
 }
 
+export async function saveApi<T>(path: string, method: 'POST' | 'PUT', data: object): Promise<T> {
+  let response: Response
+  try {
+    response = await fetch(`/api/v1${path}`, {
+      method,
+      headers: { 'Content-Type': 'application/json', 'X-Inspector-Action': '1' },
+      body: JSON.stringify(data),
+    })
+  } catch {
+    throw new Error('Не удалось связаться с локальным сервером.')
+  }
+  if (response.ok) return response.json() as Promise<T>
+  const body = await response.json().catch(() => null) as { detail?: unknown } | null
+  throw new Error(typeof body?.detail === 'string' ? body.detail : 'Локальный сервер не выполнил операцию.')
+}
+
 type RequestState<T> =
   | { state: 'loading' }
   | { state: 'ready'; data: T }

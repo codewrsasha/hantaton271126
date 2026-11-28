@@ -87,7 +87,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="content page-enter" id="main" ref={main} tabIndex={-1} key={hash}>
+      <main className="content page-enter" id="main" ref={main} tabIndex={-1} key={active.id}>
         <Page health={health} query={query} />
       </main>
 
