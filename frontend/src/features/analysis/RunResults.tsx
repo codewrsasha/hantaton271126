@@ -148,7 +148,7 @@ export function RunResults({ runId, initialResults, completed }: {
                       </td>
                       <td><span className="compliance-status" data-tone={statusStyles[status]}>{status}</span></td>
                       <td>
-                        <a className="text-action" href={`#requirements?${citation}`}>
+                        <a className="text-action" href={`#analysis?catalog=1&${citation}`}>
                           Приказ № {source.order_number}, пункт {source.clause}
                         </a>
                         <p className="muted">Редакция {source.revision}</p>

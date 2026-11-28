@@ -2,7 +2,7 @@ import asyncio
 import sqlite3
 import unicodedata
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, HTTPException, Request
 from starlette.concurrency import run_in_threadpool
@@ -55,6 +55,16 @@ def list_documents(request: Request) -> list[Document]:
 @router.get("/limits")
 def upload_limits(request: Request) -> UploadLimits:
     return UploadLimits(max_size_bytes=request.app.state.document_max_bytes)
+
+
+@router.get("/{document_id}/fragments")
+def document_fragments(document_id: UUID, request: Request):
+    try:
+        if not any(doc.id == document_id for doc in storage.list_documents(request.app.state.database_path)):
+            raise HTTPException(404, "Документ не найден.")
+        return storage.read_fragments(request.app.state.database_path, document_id)
+    except sqlite3.Error as error:
+        raise HTTPException(503, "Не удалось прочитать документ.") from error
 
 
 @router.post(

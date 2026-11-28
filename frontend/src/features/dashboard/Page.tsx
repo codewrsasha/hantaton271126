@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'react'
 import { useApi } from '../../shared/api'
 import type { ChatStatus, DashboardSummary, Health } from '../../shared/contracts'
 import { NumberTicker } from '../../shared/NumberTicker'
 
 const metrics = [
   { key: 'documents', label: 'Документы', page: 'documents' },
-  { key: 'requirements', label: 'Требования активной редакции', page: 'requirements' },
+  { key: 'requirements', label: 'Требования активной редакции', page: 'analysis?catalog=1' },
   { key: 'analyses', label: 'Проверки', page: 'analysis' },
   { key: 'reports', label: 'Отчёты', page: 'reports' },
 ] as const
@@ -16,32 +15,16 @@ const availability = {
   error: 'Недоступны',
 }
 
-let titleRevealed = false
 
 export default function DashboardPage({ health }: {
   health: ReturnType<typeof useApi<Health>>
 }) {
   const summary = useApi<DashboardSummary>('/dashboard/summary')
   const chat = useApi<ChatStatus>('/chat/status')
-  const [animateTitle] = useState(() => !titleRevealed)
-  useEffect(() => { titleRevealed = true }, [])
 
   return (
     <>
-      <header className="hero">
-        <div className="hero-copy">
-          <p className="eyebrow">Предварительный анализ</p>
-          <h1 className={animateTitle ? 'focus-title' : undefined} aria-label="Проверка соответствия">
-            <span>Проверка</span><span>соответствия</span>
-          </h1>
-          <a className="action action-primary" href="#documents">Подготовить проверку</a>
-        </div>
-        <div className="order-grid">
-          <p>Приказ ФСТЭК России</p>
-          <p className="order-number"><span>№</span> 117</p>
-          <a className="text-action" href="#requirements">К базе требований</a>
-        </div>
-      </header>
+      <header className="page-heading"><h1>Обзор сервиса</h1></header>
 
       <section className="dashboard-section scene-reveal" aria-labelledby="metrics-title">
         <h2 className="section-title" id="metrics-title">Сводка</h2>

@@ -8,6 +8,8 @@ from unittest.mock import patch
 from uuid import uuid4
 
 from app.main import create_app
+from app.modules.requirements import Catalog, FixedRevision
+from app.contracts import Requirement, RegulatorySource
 
 from tests.document_fixtures import docx, paragraph, pdf
 from tests.test_documents import BOUNDARY, form
@@ -68,9 +70,17 @@ class AnalysisReportsTests(unittest.IsolatedAsyncioTestCase):
                 {"requirement_id": "SYN-02", "clause": "Учебный пункт Б", "requirement_text": "unrelated zebra botanical"},
             ],
         }
-        self.assertEqual((await self.api("POST", CATALOG, data))[0], 201)
-        for action in ("publish", "activate"):
-            self.assertEqual((await self.api("POST", f"{CATALOG}/{revision}/{action}"))[0], 200)
+        meta = FixedRevision(order_number="117", revision=revision, revision_date=data["revision_date"],
+                             obtained_on=data["obtained_on"], source=data["source"], sha256="a" * 64,
+                             requirement_count=len(data["requirements"]))
+        entries = [Requirement(requirement_id=row["requirement_id"], requirement_text=row["requirement_text"],
+                    source_reference=RegulatorySource(order_number="117", revision=revision, clause=row["clause"]))
+                   for row in data["requirements"]]
+        if hasattr(self, "catalog_patch"):
+            self.catalog_patch.stop()
+        self.catalog_patch = patch("app.modules.analysis.catalog.catalog", return_value=Catalog(revision=meta, entries=entries))
+        self.catalog_patch.start()
+        self.addCleanup(self.catalog_patch.stop)
 
     async def upload(self, content, filename):
         status, _, response = await self.request(
@@ -167,7 +177,7 @@ class AnalysisReportsTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_missing_inputs_and_storage_errors(self):
         document_id = str(uuid4())
-        self.assertEqual((await self.api("POST", ANALYSES, {"document_ids": [document_id]}))[0], 409)
+        self.assertEqual((await self.api("POST", ANALYSES, {"document_ids": [document_id]}))[0], 404)
         await self.activate("synthetic-a")
         for ids in ([], ["not-a-uuid"], [document_id, document_id]):
             code, error = await self.api("POST", ANALYSES, {"document_ids": ids})

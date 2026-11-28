@@ -5,15 +5,15 @@ import type { AnalysisRun, DocumentRecord, RequirementRevision } from '../../sha
 
 const LIMIT = 16
 
-export function StartForm({ onFinished }: { onFinished: () => void }) {
+export function StartForm({ onFinished, catalogRefresh = 0 }: { onFinished: () => void; catalogRefresh?: number }) {
   const documents = useApi<DocumentRecord[]>('/documents')
-  const catalog = useApi<RequirementRevision | null>('/requirements/active')
+  const catalog = useApi<RequirementRevision | null>('/requirements/active', catalogRefresh)
   const [selected, setSelected] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [runId, setRunId] = useState<string | null>(null)
   const revision = catalog.state === 'ready' ? catalog.data : null
-  const ready = revision?.state === 'published' && revision.requirement_count > 0
+  const ready = revision !== null && revision.requirement_count > 0
 
   async function start(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -42,9 +42,9 @@ export function StartForm({ onFinished }: { onFinished: () => void }) {
       {(documents.state === 'error' || catalog.state === 'error') && (
         <p role="alert">Не удалось загрузить документы или активную редакцию.</p>
       )}
-      {catalog.state === 'ready' && (ready
-        ? <p>Активная редакция <strong>{revision.revision}</strong> · {revision.source}</p>
-        : <p>Активируйте опубликованную редакцию в <a className="text-action" href="#requirements">базе требований</a>.</p>)}
+      {catalog.state === 'ready' && ready && (
+        <p>Активная редакция <strong>{revision.revision}</strong> · {revision.source}</p>
+      )}
       {documents.state === 'ready' && (documents.data.length ? (
         <fieldset disabled={busy || !ready}>
           <legend>Документы для проверки · до {LIMIT}</legend>

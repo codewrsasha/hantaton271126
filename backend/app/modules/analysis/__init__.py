@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from ...contracts import AnalysisResult
 from ...local_api import ErrorResponse, LocalActionRoute, local_action
 from ..documents import storage as documents
-from ..requirements import storage as catalog
+from .. import requirements as catalog
 from . import matching, storage
 from .models import AnalysisDocument, AnalysisRun, ReviewUpdate, StartAnalysis
 from .storage import count as count_analyses
@@ -40,12 +40,10 @@ def start_analysis(request: Request, data: StartAnalysis) -> AnalysisRun:
     if not analysis_slot.acquire(blocking=False):
         raise HTTPException(429, "Уже выполняется проверка. Повторите попытку после её завершения.")
     try:
-        active = catalog.active_revision(path)
-        if active is None or active.state != "published":
-            raise HTTPException(409, "В каталоге нет активной опубликованной редакции.")
+        active = catalog.catalog().revision
         if data.revision is not None and active.revision != data.revision:
             raise HTTPException(409, "Активная редакция изменилась. Обновите страницу перед запуском.")
-        requirements = catalog.read_requirements(path, active.revision)
+        requirements = catalog.catalog().entries
         if not requirements:
             raise HTTPException(409, "В активной редакции нет требований.")
 
