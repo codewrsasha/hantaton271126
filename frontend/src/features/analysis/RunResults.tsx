@@ -1,6 +1,7 @@
 import { useId, useState } from 'react'
 import type { AnalysisResult, ComplianceStatus, Location } from '../../shared/contracts'
 import { NumberTicker } from '../../shared/NumberTicker'
+import { ReviewForm } from './ReviewForm'
 
 const statusStyles: Record<ComplianceStatus, string> = {
   'соответствует': 'match',
@@ -28,7 +29,12 @@ function formatLocation(location: Location) {
   return 'Точное место не определено'
 }
 
-function ResultDetails({ result }: { result: AnalysisResult }) {
+function ResultDetails({ result, runId, completed, onSaved }: {
+  result: AnalysisResult
+  runId: string
+  completed: boolean
+  onSaved: (result: AnalysisResult) => void
+}) {
   return (
     <details className="result-details">
       <summary aria-label={`Подробности требования ${result.requirement_id}`}>Подробности</summary>
@@ -41,9 +47,11 @@ function ResultDetails({ result }: { result: AnalysisResult }) {
               <li key={index}>
                 <p className="evidence-location">
                   <a className="text-action" href={`#documents?document=${encodeURIComponent(item.document_id)}`}>{item.filename}</a>
-                  <span className="muted">{formatLocation(item.location)} · {relations[item.relation]}</span>
+                  <span className="muted">
+                    Фрагмент {index + 1} · {formatLocation(item.location)} · {relations[result.review?.evidence_relations?.[index] ?? item.relation]}
+                  </span>
                 </p>
-                <blockquote>{item.excerpt}</blockquote>
+                <blockquote className="whitespace-pre-wrap">{item.excerpt}</blockquote>
               </li>
             ))}
           </ul>
@@ -55,12 +63,19 @@ function ResultDetails({ result }: { result: AnalysisResult }) {
             {result.review.corrected_status && <p className="muted">Исходный статус: {result.status}</p>}
           </div>
         )}
+        {completed && <ReviewForm runId={runId} result={result} statuses={statuses} onSaved={onSaved} />}
       </div>
     </details>
   )
 }
 
-export function RunResults({ results, completed }: { results: AnalysisResult[]; completed: boolean }) {
+export function RunResults({ runId, initialResults, completed }: {
+  runId: string
+  initialResults: AnalysisResult[]
+  completed: boolean
+}) {
+  const [updated, setUpdated] = useState<Map<string, AnalysisResult>>(() => new Map())
+  const results = initialResults.map((result) => updated.get(result.requirement_id) ?? result)
   const [filter, setFilter] = useState<ComplianceStatus | 'all'>('all')
   const filterId = useId()
   const visible = filter === 'all' ? results : results.filter((result) => displayedStatus(result) === filter)
@@ -126,7 +141,11 @@ export function RunResults({ results, completed }: { results: AnalysisResult[]; 
                   })
                   return (
                     <tr key={result.requirement_id}>
-                      <td><strong>{result.requirement_id}</strong><ResultDetails result={result} /></td>
+                      <td>
+                        <strong>{result.requirement_id}</strong>
+                        <ResultDetails result={result} runId={runId} completed={completed}
+                          onSaved={(item) => setUpdated((previous) => new Map(previous).set(item.requirement_id, item))} />
+                      </td>
                       <td><span className="compliance-status" data-tone={statusStyles[status]}>{status}</span></td>
                       <td>
                         <a className="text-action" href={`#analysis?catalog=1&${citation}`}>

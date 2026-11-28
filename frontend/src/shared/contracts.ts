@@ -51,12 +51,14 @@ export type Location =
   | { kind: 'docx_section'; section: string }
   | { kind: 'unknown' }
 
+export type EvidenceRelation = 'supports' | 'contradicts' | 'context'
+
 export interface Evidence {
   document_id: string
   filename: string
   excerpt: string
   location: Location
-  relation: 'supports' | 'contradicts' | 'context'
+  relation: EvidenceRelation
 }
 
 export type ComplianceStatus =
@@ -66,15 +68,18 @@ export type ComplianceStatus =
   | 'недостаточно данных'
   | 'требуется проверка'
 
+export interface ExpertReview {
+  comment: string
+  corrected_status?: ComplianceStatus | null
+  evidence_relations?: Record<number, EvidenceRelation>
+}
+
 export interface AnalysisResult extends Requirement {
   status: ComplianceStatus
   evidence: Evidence[]
   explanation: string
   confidence?: number | null
-  review?: {
-    comment: string
-    corrected_status?: ComplianceStatus | null
-  } | null
+  review?: ExpertReview | null
 }
 
 export interface AnalysisRun {
@@ -82,6 +87,14 @@ export interface AnalysisRun {
   document_ids: string[]
   state: 'queued' | 'running' | 'completed' | 'failed'
   results: AnalysisResult[]
+  revision: string
+  source: string
+  revision_sha256: string
+  revision_date: string
+  obtained_on: string
+  created_at: string
+  documents: (DocumentRecord & { fragment_count: number })[]
+  error: string | null
 }
 
 export interface Report {

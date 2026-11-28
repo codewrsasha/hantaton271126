@@ -21,10 +21,12 @@ export function ModulePage<T>({
 
   return (
     <>
-      {!hideHeading && <header className="page-heading">
-        <h1>{title}</h1>
-        <p className="muted">{description}</p>
-      </header>}
+      {!hideHeading && (
+        <header className="page-heading">
+          <h1>{title}</h1>
+          <p className="muted">{description}</p>
+        </header>
+      )}
       {beforeData}
       <section className="module-data scene-reveal" aria-label={sectionTitle ?? title} aria-busy={result.state === 'loading'}>
         {sectionTitle && <h2 className="section-title">{sectionTitle}</h2>}

@@ -24,6 +24,6 @@ def summary(request: Request) -> DashboardSummary:
     return DashboardSummary(
         documents=document_count,
         requirements=requirements.catalog().revision.requirement_count,
-        analyses=len(analysis.list_analyses()),
-        reports=len(reports.list_reports()),
+        analyses=analysis.count_analyses(request.app.state.database_path),
+        reports=reports.count_reports(request.app.state.database_path),
     )

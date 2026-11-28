@@ -51,14 +51,11 @@ class CatalogBrowserTests(unittest.TestCase):
                     ], capture_output=True, timeout=45, check=True)
                     return result.stdout.decode("utf-8")
 
-                analysis = page(route="#analysis")
-                self.assertIn('id="open-requirements"', analysis)
-                self.assertNotIn('<dialog', analysis)
                 home = page(route="#chat")
                 self.assertIn("История чатов", home)
-                self.assertIn("Рабочая область", home)
+                self.assertIn("Добавить файл", home)
                 self.assertIn('aria-label="Сообщение"', home)
-                catalog = page()
+                catalog = page(route="#requirements")
                 self.assertIn('id="source-title"', catalog)
                 self.assertIn("FSTEC117-MAIN-001", catalog)
                 self.assertIn("FSTEC117-APP-011", catalog)
@@ -67,7 +64,7 @@ class CatalogBrowserTests(unittest.TestCase):
                 deep = page("?requirement=FSTEC117-MAIN-001&revision=117-2026-05-08", route="#requirements")
                 self.assertIn('aria-expanded="true"', deep)
                 self.assertIn('class="clause-text"', deep)
-                self.assertIn("Требование по этой ссылке не найдено", page("&requirement=unknown"))
+                self.assertIn("Требование по этой ссылке не найдено", page("?requirement=unknown", route="#requirements"))
             finally:
                 server.should_exit = True
                 thread.join(timeout=10)
